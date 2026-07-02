@@ -5,6 +5,7 @@ import android.util.Log
 import com.example.healthapp.data.HealthManager
 import com.example.healthapp.data.HealthSummary
 import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.BlobPart
 import com.google.ai.client.generativeai.type.FunctionResponsePart
 import com.google.ai.client.generativeai.type.Schema
 import com.google.ai.client.generativeai.type.Tool
@@ -98,7 +99,9 @@ class GeminiClient(private val context: Context) {
         apiKey: String,
         historyList: List<com.google.ai.client.generativeai.type.Content>,
         newMessage: String,
-        healthManager: HealthManager
+        healthManager: HealthManager,
+        attachmentBytes: ByteArray? = null,
+        attachmentMimeType: String? = null
     ): ChatResult {
         if (apiKey.isBlank()) {
             return ChatResult(
@@ -113,7 +116,18 @@ class GeminiClient(private val context: Context) {
             val model = getModel(apiKey)
             val chat = model.startChat(historyList)
 
-            var response = chat.sendMessage(newMessage)
+            val initialContent = if (attachmentBytes != null && attachmentMimeType != null) {
+                content("user") {
+                    part(BlobPart(attachmentMimeType, attachmentBytes))
+                    text(newMessage)
+                }
+            } else {
+                content("user") {
+                    text(newMessage)
+                }
+            }
+
+            var response = chat.sendMessage(initialContent)
             var iterations = 0
 
             // Loop to handle up to 3 back-and-forth function calls

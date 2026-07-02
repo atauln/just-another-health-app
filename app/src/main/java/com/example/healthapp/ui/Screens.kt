@@ -1,7 +1,10 @@
 package com.example.healthapp.ui
 
 import android.content.Context
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -17,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -469,8 +473,31 @@ fun GeminiChatScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
     var userMessage by remember { mutableStateOf("") }
     var isSending by remember { mutableStateOf(false) }
 
-    // Simulated Document Ingestion selection
-    var showDocSelector by remember { mutableStateOf(false) }
+    // Real Document Picker state
+    var selectedAttachmentUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedAttachmentMimeType by remember { mutableStateOf<String?>(null) }
+    var selectedAttachmentName by remember { mutableStateOf<String?>(null) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            selectedAttachmentUri = uri
+            selectedAttachmentMimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+            var name = "Attached File"
+            try {
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1 && cursor.moveToFirst()) {
+                        name = cursor.getString(nameIndex)
+                    }
+                }
+            } catch (e: Exception) {
+                name = uri.lastPathSegment ?: "Attached File"
+            }
+            selectedAttachmentName = name
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -503,8 +530,8 @@ fun GeminiChatScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
             }
         }
 
-        // Inline Document Selector Popup/Card
-        AnimatedVisibility(visible = showDocSelector) {
+        // Selected Attachment Preview Card
+        AnimatedVisibility(visible = selectedAttachmentUri != null) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardDark),
                 modifier = Modifier
@@ -512,27 +539,50 @@ fun GeminiChatScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                     .padding(vertical = 8.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Select a simulated document to attach:", color = AccentCyan, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    val sampleDocs = listOf(
-                        "Lab Report: Elevated Cholesterol (06/15/2026)",
-                        "Blood Panel: Normal Sodium (06/28/2026)",
-                        "Meal Screenshot: 850kcal Salad/Lunch (Today)"
-                    )
-                    sampleDocs.forEach { doc ->
-                        Text(
-                            text = doc,
-                            color = TextLight,
-                            fontSize = 13.sp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showDocSelector = false
-                                    chatMessages.add(ChatMessage("[Attached Context Document: $doc]", true))
-                                    chatMessages.add(ChatMessage("Analyzing attached report. Ask me a question about it!", false))
-                                }
-                                .padding(vertical = 8.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AttachFile,
+                            contentDescription = "Attached file",
+                            tint = AccentViolet,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = selectedAttachmentName ?: "File attached",
+                                color = TextLight,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = selectedAttachmentMimeType ?: "application/octet-stream",
+                                color = TextMuted,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = {
+                            selectedAttachmentUri = null
+                            selectedAttachmentMimeType = null
+                            selectedAttachmentName = null
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Remove attachment",
+                            tint = Color(0xFFEF4444)
                         )
                     }
                 }
@@ -546,7 +596,7 @@ fun GeminiChatScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             IconButton(
-                onClick = { showDocSelector = !showDocSelector },
+                onClick = { filePickerLauncher.launch("*/*") },
                 colors = IconButtonDefaults.iconButtonColors(contentColor = AccentViolet)
             ) {
                 Icon(imageVector = Icons.Default.AttachFile, contentDescription = "Attach Document")
@@ -569,23 +619,50 @@ fun GeminiChatScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                 modifier = Modifier.weight(1f),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = {
-                    if (userMessage.isNotBlank() && !isSending) {
+                    if ((userMessage.isNotBlank() || selectedAttachmentUri != null) && !isSending) {
                         val msg = userMessage
                         userMessage = ""
                         isSending = true
-                        chatMessages.add(ChatMessage(msg, true))
+
+                        val uri = selectedAttachmentUri
+                        val mime = selectedAttachmentMimeType
+                        val name = selectedAttachmentName
+
+                        selectedAttachmentUri = null
+                        selectedAttachmentMimeType = null
+                        selectedAttachmentName = null
+
+                        if (uri != null) {
+                            chatMessages.add(ChatMessage("[Sent file: $name]\n$msg", true))
+                        } else {
+                            chatMessages.add(ChatMessage(msg, true))
+                        }
 
                         coroutineScope.launch {
-                            val result = geminiClient.chatWithModel(
-                                apiKey = context.getApiKey(),
-                                historyList = chatHistory.value,
-                                newMessage = msg,
-                                healthManager = healthManager
-                            )
-                            chatMessages.add(ChatMessage(result.reply, false))
-                            chatHistory.value = result.newHistory
-                            isSending = false
-                            listState.animateScrollToItem(chatMessages.size - 1)
+                            try {
+                                var bytes: ByteArray? = null
+                                if (uri != null) {
+                                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                                        bytes = stream.readBytes()
+                                    }
+                                }
+
+                                val result = geminiClient.chatWithModel(
+                                    apiKey = context.getApiKey(),
+                                    historyList = chatHistory.value,
+                                    newMessage = msg.ifBlank { "Analyze this attached file." },
+                                    healthManager = healthManager,
+                                    attachmentBytes = bytes,
+                                    attachmentMimeType = mime
+                                )
+                                chatMessages.add(ChatMessage(result.reply, false))
+                                chatHistory.value = result.newHistory
+                            } catch (e: Exception) {
+                                chatMessages.add(ChatMessage("Error: ${e.localizedMessage}", false))
+                            } finally {
+                                isSending = false
+                                listState.animateScrollToItem(chatMessages.size - 1)
+                            }
                         }
                     }
                 })
@@ -593,27 +670,54 @@ fun GeminiChatScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
 
             IconButton(
                 onClick = {
-                    if (userMessage.isNotBlank() && !isSending) {
+                    if ((userMessage.isNotBlank() || selectedAttachmentUri != null) && !isSending) {
                         val msg = userMessage
                         userMessage = ""
                         isSending = true
-                        chatMessages.add(ChatMessage(msg, true))
+
+                        val uri = selectedAttachmentUri
+                        val mime = selectedAttachmentMimeType
+                        val name = selectedAttachmentName
+
+                        selectedAttachmentUri = null
+                        selectedAttachmentMimeType = null
+                        selectedAttachmentName = null
+
+                        if (uri != null) {
+                            chatMessages.add(ChatMessage("[Sent file: $name]\n$msg", true))
+                        } else {
+                            chatMessages.add(ChatMessage(msg, true))
+                        }
 
                         coroutineScope.launch {
-                            val result = geminiClient.chatWithModel(
-                                apiKey = context.getApiKey(),
-                                historyList = chatHistory.value,
-                                newMessage = msg,
-                                healthManager = healthManager
-                            )
-                            chatMessages.add(ChatMessage(result.reply, false))
-                            chatHistory.value = result.newHistory
-                            isSending = false
-                            listState.animateScrollToItem(chatMessages.size - 1)
+                            try {
+                                var bytes: ByteArray? = null
+                                if (uri != null) {
+                                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                                        bytes = stream.readBytes()
+                                    }
+                                }
+
+                                val result = geminiClient.chatWithModel(
+                                    apiKey = context.getApiKey(),
+                                    historyList = chatHistory.value,
+                                    newMessage = msg.ifBlank { "Analyze this attached file." },
+                                    healthManager = healthManager,
+                                    attachmentBytes = bytes,
+                                    attachmentMimeType = mime
+                                )
+                                chatMessages.add(ChatMessage(result.reply, false))
+                                chatHistory.value = result.newHistory
+                            } catch (e: Exception) {
+                                chatMessages.add(ChatMessage("Error: ${e.localizedMessage}", false))
+                            } finally {
+                                isSending = false
+                                listState.animateScrollToItem(chatMessages.size - 1)
+                            }
                         }
                     }
                 },
-                enabled = userMessage.isNotBlank() && !isSending,
+                enabled = (userMessage.isNotBlank() || selectedAttachmentUri != null) && !isSending,
                 colors = IconButtonDefaults.iconButtonColors(
                     containerColor = AccentCyan,
                     contentColor = DarkBgEnd
