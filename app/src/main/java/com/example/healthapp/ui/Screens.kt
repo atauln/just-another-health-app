@@ -301,8 +301,8 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
 
     LaunchedEffect(healthManager) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            today = healthManager.fetchSummary(LocalDate.now())
-            yesterday = healthManager.fetchSummary(LocalDate.now().minusDays(1))
+            today = healthManager.fetchSummary(LocalDate.now().minusDays(1)) // Yesterday (Audit Target)
+            yesterday = healthManager.fetchSummary(LocalDate.now().minusDays(2)) // Previous Day (Comparative)
         }
     }
 
@@ -447,6 +447,27 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // System Focus Bulletin
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFEF4444).copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                    .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = "HISTORICAL AUDIT ACTIVE: DAILY PORTFOLIO PORTRAYS COMPT LOGS FROM YESTERDAY COMPARED TO PREVIOUS DAY. LIVE INCOMPLETE FEED FILTERED.",
+                    color = Color(0xFFF87171),
+                    fontSize = 8.sp,
+                    lineHeight = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
         // Ticker Summary Bar
         item {
             Row(
@@ -480,7 +501,7 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
 
         item {
             Text(
-                text = "PORTFOLIO INSIGHTS",
+                text = "PORTFOLIO INSIGHTS (YESTERDAY)",
                 color = TextLight,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
@@ -643,7 +664,7 @@ fun MetricComparisonCard(
             }
 
             Text(
-                text = "$todayValue $unit".uppercase(),
+                text = "YST: $todayValue $unit".uppercase(),
                 color = color,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
@@ -651,7 +672,7 @@ fun MetricComparisonCard(
             )
 
             Text(
-                text = "YST: $yesterdayValue $unit".uppercase(),
+                text = "PRV: $yesterdayValue $unit".uppercase(),
                 color = TextMuted,
                 fontSize = 9.sp,
                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
@@ -1053,27 +1074,42 @@ fun GeminiChatScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(10.dp)
     ) {
-        Text(
-            text = "AI Health Coach",
-            color = TextLight,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "[AI ANALYST CHAT - TERMINAL CORE]",
+                color = TextLight,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace
+            )
+            Box(
+                modifier = Modifier
+                    .background(Color(0xFF10B981).copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text("SECURE-LINK", color = Color(0xFF10B981), fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Chat History List
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(bottom = 8.dp)
+                .padding(bottom = 6.dp)
         ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(chatMessages) { msg ->
                     ChatBubble(msg)
@@ -1083,17 +1119,15 @@ fun GeminiChatScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
 
         // Selected Attachment Preview Card
         AnimatedVisibility(visible = selectedAttachmentUri != null) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardDark),
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                shape = RoundedCornerShape(12.dp)
+                    .background(Color(0xFF020617), RoundedCornerShape(4.dp))
+                    .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                    .padding(8.dp)
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -1105,21 +1139,23 @@ fun GeminiChatScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                             imageVector = Icons.Default.AttachFile,
                             contentDescription = "Attached file",
                             tint = AccentViolet,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Column {
                             Text(
                                 text = selectedAttachmentName ?: "File attached",
                                 color = TextLight,
-                                fontSize = 14.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
                                 maxLines = 1
-                            )
+                              )
                             Text(
                                 text = selectedAttachmentMimeType ?: "application/octet-stream",
                                 color = TextMuted,
-                                fontSize = 11.sp
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace
                             )
                         }
                     }
@@ -1128,46 +1164,54 @@ fun GeminiChatScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                             selectedAttachmentUri = null
                             selectedAttachmentMimeType = null
                             selectedAttachmentName = null
-                        }
+                        },
+                        modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Remove attachment",
-                            tint = Color(0xFFEF4444)
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
             }
         }
 
+        Spacer(modifier = Modifier.height(4.dp))
+
         // Message Input Row
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             IconButton(
                 onClick = { filePickerLauncher.launch("*/*") },
-                colors = IconButtonDefaults.iconButtonColors(contentColor = AccentViolet)
+                colors = IconButtonDefaults.iconButtonColors(contentColor = AccentViolet),
+                modifier = Modifier.size(36.dp)
             ) {
-                Icon(imageVector = Icons.Default.AttachFile, contentDescription = "Attach Document")
+                Icon(imageVector = Icons.Default.AttachFile, contentDescription = "Attach Document", modifier = Modifier.size(16.dp))
             }
 
             TextField(
                 value = userMessage,
                 onValueChange = { userMessage = it },
-                placeholder = { Text("Ask your Coach...", color = TextMuted) },
+                placeholder = { Text("ASK CORE TERMINAL...", color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace) },
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = CardDark,
-                    unfocusedContainerColor = CardDark,
+                    focusedContainerColor = Color(0xFF020617),
+                    unfocusedContainerColor = Color(0xFF020617),
                     focusedTextColor = TextLight,
                     unfocusedTextColor = TextLight,
                     cursorColor = AccentCyan,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(4.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 10.sp, fontFamily = FontFamily.Monospace),
+                modifier = Modifier
+                    .weight(1f)
+                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp)),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = {
                     if ((userMessage.isNotBlank() || selectedAttachmentUri != null) && !isSending) {
@@ -1272,9 +1316,12 @@ fun GeminiChatScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                 colors = IconButtonDefaults.iconButtonColors(
                     containerColor = AccentCyan,
                     contentColor = DarkBgEnd
-                )
+                ),
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(AccentCyan, RoundedCornerShape(4.dp))
             ) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send Message")
+                Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send Message", modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -1285,26 +1332,22 @@ fun ChatBubble(msg: ChatMessage) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
+            .padding(vertical = 1.dp),
         contentAlignment = if (msg.isUser) Alignment.CenterEnd else Alignment.CenterStart
     ) {
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = if (msg.isUser) AccentCyan else CardDark
-            ),
-            shape = RoundedCornerShape(
-                topStart = 16.dp,
-                topEnd = 16.dp,
-                bottomStart = if (msg.isUser) 16.dp else 4.dp,
-                bottomEnd = if (msg.isUser) 4.dp else 16.dp
-            ),
-            modifier = Modifier.widthIn(max = 280.dp)
+        Box(
+            modifier = Modifier
+                .widthIn(max = 280.dp)
+                .background(Color(0xFF020617), RoundedCornerShape(4.dp))
+                .border(1.dp, if (msg.isUser) AccentCyan else Color(0xFF1E293B), RoundedCornerShape(4.dp))
+                .padding(8.dp)
         ) {
             Text(
                 text = msg.text,
-                color = if (msg.isUser) DarkBgEnd else TextLight,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(12.dp)
+                color = TextLight,
+                fontSize = 10.sp,
+                lineHeight = 14.sp,
+                fontFamily = FontFamily.Monospace
             )
         }
     }
@@ -1323,44 +1366,49 @@ fun RemindersScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(10.dp)
     ) {
         Text(
-            text = "AI Alert Monitors",
+            text = "[ALERTS CONTROL CENTRE - ACTIVE POLICIES]",
             color = TextLight,
-            fontSize = 28.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
+            fontFamily = FontFamily.Monospace
         )
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Define checks evaluated every morning. Gemini queries history to determine alerts.",
+            text = "Gemini queries metrics history daily to flag anomalies or breaches.",
             color = TextMuted,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
+            fontSize = 9.sp,
+            fontFamily = FontFamily.Monospace
         )
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Add Alert Field
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(bottom = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextField(
                 value = newAlertText,
                 onValueChange = { newAlertText = it },
-                placeholder = { Text("e.g. Notify if sodium average is increasing", color = TextMuted) },
+                placeholder = { Text("ADD ANOMALY POLICY CHECK...", color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace) },
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = CardDark,
-                    unfocusedContainerColor = CardDark,
+                    focusedContainerColor = Color(0xFF020617),
+                    unfocusedContainerColor = Color(0xFF020617),
                     focusedTextColor = TextLight,
                     unfocusedTextColor = TextLight,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1f)
+                shape = RoundedCornerShape(4.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 10.sp, fontFamily = FontFamily.Monospace),
+                modifier = Modifier
+                    .weight(1f)
+                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
             )
 
             Button(
@@ -1374,58 +1422,73 @@ fun RemindersScreen() {
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
                 contentPadding = PaddingValues(0.dp),
+                shape = RoundedCornerShape(4.dp),
                 modifier = Modifier
-                    .size(52.dp)
-                    .background(AccentCyan, RoundedCornerShape(12.dp))
+                    .size(44.dp)
+                    .background(AccentCyan, RoundedCornerShape(4.dp))
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Alert", tint = DarkBgEnd)
+                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Alert", tint = DarkBgEnd, modifier = Modifier.size(16.dp))
             }
         }
 
-        // Active Alerts List
-        Text("Registered Monitored Alerts", color = TextLight, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+        // Active Alerts List Header
+        Text(
+            text = "[REGISTERED MONITORING POLICIES]",
+            color = AccentCyan,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
         
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(alertsList) { alert ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = CardDark),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF020617), RoundedCornerShape(4.dp))
+                        .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
+                        .padding(10.dp)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(alert, color = TextLight, fontSize = 14.sp, modifier = Modifier.weight(1f))
                         Text(
-                            text = "Remove",
+                            text = alert.uppercase(),
+                            color = TextLight,
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "[DISCONNECT]",
                             color = Color(0xFFEF4444),
-                            fontSize = 12.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
                             modifier = Modifier
                                 .clickable {
                                     val updated = alertsList - alert
                                     alertsList = updated
                                     context.saveAlerts(updated)
                                 }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Trigger Alert Evaluation Now button (Development helper)
+        // Trigger Alert Evaluation Now button
         Button(
             onClick = {
                 isChecking = true
@@ -1435,9 +1498,10 @@ fun RemindersScreen() {
                 isChecking = false
             },
             colors = ButtonDefaults.buttonColors(containerColor = AccentViolet),
-            modifier = Modifier.fillMaxWidth()
+            shape = RoundedCornerShape(4.dp),
+            modifier = Modifier.fillMaxWidth().height(36.dp)
         ) {
-            Text("Evaluate Alerts Now", color = TextLight, fontWeight = FontWeight.Bold)
+            Text("RUN INSTANT SYSTEM AUDIT", color = TextLight, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
         }
     }
 }
@@ -1475,97 +1539,96 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
     var showTargetConsultant by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
+    val fieldColors = TextFieldDefaults.colors(
+        focusedContainerColor = Color(0xFF020617),
+        unfocusedContainerColor = Color(0xFF020617),
+        focusedTextColor = TextLight,
+        unfocusedTextColor = TextLight,
+        focusedIndicatorColor = Color.Transparent,
+        unfocusedIndicatorColor = Color.Transparent,
+        cursorColor = AccentCyan
+    )
+    val fieldBorder = Modifier
+        .fillMaxWidth()
+        .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
+    val fieldTextStyle = androidx.compose.ui.text.TextStyle(
+        fontSize = 10.sp,
+        fontFamily = FontFamily.Monospace
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(10.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
-            text = "App Settings",
+            text = "[SYSTEM CONFIGURATION PANEL]",
             color = TextLight,
-            fontSize = 28.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
+            fontFamily = FontFamily.Monospace
         )
 
-        // API Key Section
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth()
+        // ── API Gateway ──────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF020617), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
+                .padding(10.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Gemini API Configuration", color = AccentCyan, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(6.dp))
-                Text("An API key is required to analyze comparisons and run active health alerts.", color = TextMuted, fontSize = 12.sp)
-                Spacer(modifier = Modifier.height(12.dp))
-
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("[API GATEWAY — GEMINI]", color = AccentCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("Required for AI analysis, portfolio insights and alert evaluation.", color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                 TextField(
                     value = apiKeyInput,
-                    onValueChange = {
-                        apiKeyInput = it
-                        context.saveApiKey(it)
-                    },
+                    onValueChange = { apiKeyInput = it; context.saveApiKey(it) },
                     visualTransformation = PasswordVisualTransformation(),
-                    placeholder = { Text("Enter Gemini API Key...", color = TextMuted) },
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = DarkBgStart,
-                        unfocusedContainerColor = DarkBgStart,
-                        focusedTextColor = TextLight,
-                        unfocusedTextColor = TextLight,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    placeholder = { Text("ENTER GEMINI API KEY...", color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace) },
+                    colors = fieldColors,
+                    shape = RoundedCornerShape(4.dp),
+                    textStyle = fieldTextStyle,
+                    modifier = fieldBorder
                 )
             }
         }
 
-        // Connection status card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth()
+        // ── Samsung Health SDK Status ─────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF020617), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
+                .padding(10.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Samsung Health Connection", color = AccentCyan, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("[SAMSUNG HEALTH SDK — CONNECTION STATUS]", color = AccentCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
 
                 val stateLabel: String
                 val stateColor: Color
                 when (sdkState) {
-                    is HealthManager.ConnectionState.Connected -> {
-                        stateLabel = "CONNECTED"
-                        stateColor = Color(0xFF10B981)
-                    }
-                    is HealthManager.ConnectionState.Connecting -> {
-                        stateLabel = "CONNECTING..."
-                        stateColor = Color(0xFFF59E0B)
-                    }
-                    is HealthManager.ConnectionState.Disconnected -> {
-                        stateLabel = "DISCONNECTED"
-                        stateColor = TextMuted
-                    }
-                    is HealthManager.ConnectionState.Failed -> {
-                        stateLabel = "FAILED (Mock Fallback Active)"
-                        stateColor = Color(0xFFEF4444)
-                    }
+                    is HealthManager.ConnectionState.Connected -> { stateLabel = "CONNECTED"; stateColor = Color(0xFF10B981) }
+                    is HealthManager.ConnectionState.Connecting -> { stateLabel = "CONNECTING..."; stateColor = Color(0xFFF59E0B) }
+                    is HealthManager.ConnectionState.Disconnected -> { stateLabel = "DISCONNECTED"; stateColor = TextMuted }
+                    is HealthManager.ConnectionState.Failed -> { stateLabel = "FAILED (MOCK FALLBACK ACTIVE)"; stateColor = Color(0xFFEF4444) }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .background(stateColor, RoundedCornerShape(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(modifier = Modifier.size(8.dp).background(stateColor, RoundedCornerShape(4.dp)))
+                    Text(stateLabel, color = stateColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                }
+
+                if (sdkState is HealthManager.ConnectionState.Failed) {
+                    Text(
+                        text = (sdkState as HealthManager.ConnectionState.Failed).message,
+                        color = Color(0xFFEF4444),
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stateLabel, color = TextLight, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = {
                         activity?.let { act ->
@@ -1579,32 +1642,26 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier.fillMaxWidth().height(34.dp)
                 ) {
-                    Text("Sync Permissions", color = DarkBgEnd, fontWeight = FontWeight.Bold)
-                }
-
-                if (sdkState is HealthManager.ConnectionState.Failed) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = (sdkState as HealthManager.ConnectionState.Failed).message,
-                        color = Color(0xFFEF4444),
-                        fontSize = 11.sp
-                    )
+                    Text("SYNC PERMISSIONS", color = DarkBgEnd, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                 }
             }
         }
 
-        // Tracked Metrics Customization Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth()
+        // ── Metric Channel Visibility ─────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF020617), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
+                .padding(10.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Tracked Metrics Visibility", color = AccentCyan, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text("Configure which metrics are monitored and displayed across the app.", color = TextMuted, fontSize = 12.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("[METRIC CHANNEL VISIBILITY]", color = AccentCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("Toggle which metrics are monitored and rendered across all tabs.", color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                Spacer(modifier = Modifier.height(2.dp))
 
                 listOf(
                     Triple(showSteps, "Daily Steps") { b: Boolean -> showSteps = b; context.saveShowSteps(b) },
@@ -1621,274 +1678,134 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onCheckChanged(!isChecked) }
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 1.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
                             checked = isChecked,
                             onCheckedChange = { onCheckChanged(it) },
-                            colors = CheckboxDefaults.colors(checkedColor = AccentCyan, uncheckedColor = TextMuted)
+                            colors = CheckboxDefaults.colors(checkedColor = AccentCyan, uncheckedColor = TextMuted),
+                            modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = label, color = TextLight, fontSize = 14.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = label.uppercase(),
+                            color = if (isChecked) TextLight else TextMuted,
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
                     }
                 }
             }
         }
 
-        // Daily Health Targets Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth()
+        // ── Daily Threshold Parameters ────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF020617), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
+                .padding(10.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Daily Health Targets", color = AccentCyan, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text("Configure your daily target levels and macro budgets.", color = TextMuted, fontSize = 12.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("[DAILY THRESHOLD PARAMETERS]", color = AccentCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text("Configure budgets and target levels for all tracked metrics.", color = TextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Steps Goal", color = TextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        TextField(
-                            value = stepsInput,
-                            onValueChange = {
-                                stepsInput = it
-                                it.toIntOrNull()?.let { steps -> context.saveTargetSteps(steps) }
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkBgStart,
-                                unfocusedContainerColor = DarkBgStart,
-                                focusedTextColor = TextLight,
-                                unfocusedTextColor = TextLight,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Calorie Target", color = TextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        TextField(
-                            value = caloriesInput,
-                            onValueChange = {
-                                caloriesInput = it
-                                it.toIntOrNull()?.let { cals -> context.saveTargetCalories(cals) }
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkBgStart,
-                                unfocusedContainerColor = DarkBgStart,
-                                focusedTextColor = TextLight,
-                                unfocusedTextColor = TextLight,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Sodium Limit (mg)", color = TextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        TextField(
-                            value = sodiumInput,
-                            onValueChange = {
-                                sodiumInput = it
-                                it.toIntOrNull()?.let { sod -> context.saveTargetSodium(sod) }
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkBgStart,
-                                unfocusedContainerColor = DarkBgStart,
-                                focusedTextColor = TextLight,
-                                unfocusedTextColor = TextLight,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Water Goal (ml)", color = TextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        TextField(
-                            value = waterInput,
-                            onValueChange = {
-                                waterInput = it
-                                it.toIntOrNull()?.let { wat -> context.saveTargetWater(wat) }
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkBgStart,
-                                unfocusedContainerColor = DarkBgStart,
-                                focusedTextColor = TextLight,
-                                unfocusedTextColor = TextLight,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Protein Goal (g)", color = TextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        TextField(
-                            value = proteinInput,
-                            onValueChange = {
-                                proteinInput = it
-                                it.toIntOrNull()?.let { p -> context.saveTargetProtein(p) }
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkBgStart,
-                                unfocusedContainerColor = DarkBgStart,
-                                focusedTextColor = TextLight,
-                                unfocusedTextColor = TextLight,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Carbs Goal (g)", color = TextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        TextField(
-                            value = carbsInput,
-                            onValueChange = {
-                                carbsInput = it
-                                it.toIntOrNull()?.let { c -> context.saveTargetCarbs(c) }
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkBgStart,
-                                unfocusedContainerColor = DarkBgStart,
-                                focusedTextColor = TextLight,
-                                unfocusedTextColor = TextLight,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Fat Goal (g)", color = TextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        TextField(
-                            value = fatInput,
-                            onValueChange = {
-                                fatInput = it
-                                it.toIntOrNull()?.let { f -> context.saveTargetFat(f) }
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkBgStart,
-                                unfocusedContainerColor = DarkBgStart,
-                                focusedTextColor = TextLight,
-                                unfocusedTextColor = TextLight,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Target Weight (kg)", color = TextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        TextField(
-                            value = weightInput,
-                            onValueChange = {
-                                weightInput = it
-                                it.toFloatOrNull()?.let { wt -> context.saveTargetWeight(wt) }
-                            },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkBgStart,
-                                unfocusedContainerColor = DarkBgStart,
-                                focusedTextColor = TextLight,
-                                unfocusedTextColor = TextLight,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        Button(
-                            onClick = {
-                                val sdkTargets = healthManager.fetchTargets()
-                                context.saveTargetSteps(sdkTargets.steps)
-                                context.saveTargetCalories(sdkTargets.calories)
-                                context.saveTargetWater(sdkTargets.water)
-                                stepsInput = sdkTargets.steps.toString()
-                                caloriesInput = sdkTargets.calories.toString()
-                                waterInput = sdkTargets.water.toString()
-                                Toast.makeText(context, "Targets imported from Samsung Health!", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentViolet),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
-                        ) {
-                            Text("Import Targets", color = TextLight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        Button(
-                            onClick = { showTargetConsultant = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
-                        ) {
-                            Text("Consult AI for Targets", color = DarkBgEnd, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Dev Mode Card
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Developer Instructions", color = AccentViolet, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                val instructions = listOf(
-                    "1. Open the Samsung Health app on your physical test phone.",
-                    "2. Open Settings > About Samsung Health.",
-                    "3. Tap the version number quickly 10 times or more.",
-                    "4. In the developer menu, enable 'Developer mode (Samsung Health Data SDK)'."
+                data class TargetField(val label: String, val value: String, val onChange: (String) -> Unit)
+                val fields = listOf(
+                    TargetField("STEPS GOAL", stepsInput) { v -> stepsInput = v; v.toIntOrNull()?.let { context.saveTargetSteps(it) } },
+                    TargetField("CALORIE TARGET (kcal)", caloriesInput) { v -> caloriesInput = v; v.toIntOrNull()?.let { context.saveTargetCalories(it) } },
+                    TargetField("SODIUM LIMIT (mg)", sodiumInput) { v -> sodiumInput = v; v.toIntOrNull()?.let { context.saveTargetSodium(it) } },
+                    TargetField("WATER GOAL (ml)", waterInput) { v -> waterInput = v; v.toIntOrNull()?.let { context.saveTargetWater(it) } },
+                    TargetField("PROTEIN GOAL (g)", proteinInput) { v -> proteinInput = v; v.toIntOrNull()?.let { context.saveTargetProtein(it) } },
+                    TargetField("CARBS GOAL (g)", carbsInput) { v -> carbsInput = v; v.toIntOrNull()?.let { context.saveTargetCarbs(it) } },
+                    TargetField("FAT GOAL (g)", fatInput) { v -> fatInput = v; v.toIntOrNull()?.let { context.saveTargetFat(it) } },
+                    TargetField("TARGET WEIGHT (kg)", weightInput) { v -> weightInput = v; v.toFloatOrNull()?.let { context.saveTargetWeight(it) } }
                 )
-                instructions.forEach { line ->
-                    Text(line, color = TextLight, fontSize = 12.sp, modifier = Modifier.padding(vertical = 2.dp))
+
+                fields.chunked(2).forEach { row ->
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { f ->
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(f.label, color = TextMuted, fontSize = 8.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                TextField(
+                                    value = f.value,
+                                    onValueChange = f.onChange,
+                                    colors = fieldColors,
+                                    shape = RoundedCornerShape(4.dp),
+                                    textStyle = fieldTextStyle,
+                                    modifier = fieldBorder,
+                                    keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                                )
+                            }
+                        }
+                        if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            val sdkTargets = healthManager.fetchTargets()
+                            context.saveTargetSteps(sdkTargets.steps)
+                            context.saveTargetCalories(sdkTargets.calories)
+                            context.saveTargetWater(sdkTargets.water)
+                            stepsInput = sdkTargets.steps.toString()
+                            caloriesInput = sdkTargets.calories.toString()
+                            waterInput = sdkTargets.water.toString()
+                            Toast.makeText(context, "Targets imported from Samsung Health!", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentViolet),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.weight(1f).height(34.dp)
+                    ) {
+                        Text("IMPORT FROM SDK", color = TextLight, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    }
+                    Button(
+                        onClick = { showTargetConsultant = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.weight(1f).height(34.dp)
+                    ) {
+                        Text("AI TARGET CONSULT", color = DarkBgEnd, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    }
+                }
+            }
+        }
+
+        // ── Developer Notes ───────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF020617), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
+                .padding(10.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("[DEVELOPER NOTES — SDK SETUP]", color = AccentViolet, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                listOf(
+                    "1. Open the Samsung Health app on your phone.",
+                    "2. Go to Settings > About Samsung Health.",
+                    "3. Tap the version number 10+ times to unlock developer menu.",
+                    "4. Enable 'Developer mode (Samsung Health Data SDK)'."
+                ).forEach { line ->
+                    Text(line, color = TextLight, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                 }
             }
         }
     }
-
     if (showTargetConsultant) {
         Dialog(onDismissRequest = { showTargetConsultant = false }) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = DarkBgStart),
-                shape = RoundedCornerShape(16.dp),
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(0.85f)
-                    .padding(8.dp)
-                    .border(1.dp, AccentCyan, RoundedCornerShape(16.dp))
+                    .background(Color(0xFF020617), RoundedCornerShape(4.dp))
+                    .border(1.dp, AccentCyan, RoundedCornerShape(4.dp))
+                    .padding(10.dp)
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     // Header
                     Row(
@@ -1897,20 +1814,23 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "AI Target Consultant",
+                            text = "[AI TARGET CONSULTANT — THRESHOLD CALIBRATION]",
                             color = AccentCyan,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.weight(1f)
                         )
-                        IconButton(onClick = { showTargetConsultant = false }) {
-                            Icon(imageVector = Icons.Default.Close, contentDescription = "Close Dialog", tint = Color.Red)
+                        IconButton(onClick = { showTargetConsultant = false }, modifier = Modifier.size(24.dp)) {
+                            Icon(imageVector = Icons.Default.Close, contentDescription = "Close Dialog", tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
                         }
                     }
                     Text(
-                        text = "Discuss with the AI to tailor steps, calorie limits, macros, and sodium bounds based on height, weight, and history.",
+                        text = "Describe your goals. AI will set steps, calories, macros, sodium, and weight targets automatically.",
                         color = TextMuted,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(bottom = 12.dp)
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                     )
 
                     val consultantHistory = remember { mutableStateOf<List<Content>>(emptyList()) }
@@ -1926,11 +1846,11 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp)
+                            .padding(bottom = 6.dp)
                     ) {
                         androidx.compose.foundation.lazy.LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(consultantMessages) { msg ->
                                 ChatBubble(msg)
@@ -1942,23 +1862,26 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         TextField(
                             value = consultantMessageInput,
                             onValueChange = { consultantMessageInput = it },
-                            placeholder = { Text("Say something...", color = TextMuted) },
+                            placeholder = { Text("DESCRIBE YOUR GOALS...", color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace) },
                             colors = TextFieldDefaults.colors(
-                                focusedContainerColor = CardDark,
-                                unfocusedContainerColor = CardDark,
+                                focusedContainerColor = Color(0xFF0D1B2A),
+                                unfocusedContainerColor = Color(0xFF0D1B2A),
                                 focusedTextColor = TextLight,
                                 unfocusedTextColor = TextLight,
                                 cursorColor = AccentCyan,
                                 focusedIndicatorColor = Color.Transparent,
                                 unfocusedIndicatorColor = Color.Transparent
                             ),
-                            shape = RoundedCornerShape(24.dp),
-                            modifier = Modifier.weight(1f)
+                            shape = RoundedCornerShape(4.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 10.sp, fontFamily = FontFamily.Monospace),
+                            modifier = Modifier
+                                .weight(1f)
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
                         )
 
                         IconButton(
@@ -1981,7 +1904,7 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                                             )
                                             consultantMessages.add(ChatMessage(result.reply, false))
                                             consultantHistory.value = result.newHistory
-                                            
+
                                             // Refresh local settings inputs
                                             stepsInput = context.getTargetSteps().toString()
                                             caloriesInput = context.getTargetCalories().toString()
@@ -2003,9 +1926,12 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                             colors = IconButtonDefaults.iconButtonColors(
                                 containerColor = AccentCyan,
                                 contentColor = DarkBgEnd
-                            )
+                            ),
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(AccentCyan, RoundedCornerShape(4.dp))
                         ) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                            Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send", modifier = Modifier.size(16.dp))
                         }
                     }
                 }

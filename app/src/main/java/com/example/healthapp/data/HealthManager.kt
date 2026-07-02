@@ -348,9 +348,9 @@ class HealthManager(private val context: Context) {
      * Fetch historical records for the last N days.
      */
     fun fetchHistory(days: Int): List<HealthSummary> {
-        val today = LocalDate.now()
+        val yesterday = LocalDate.now().minusDays(1)
         return (0 until days).map { i ->
-            fetchSummary(today.minusDays(i.toLong()))
+            fetchSummary(yesterday.minusDays(i.toLong()))
         }.reversed()
     }
 
