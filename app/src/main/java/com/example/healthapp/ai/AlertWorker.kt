@@ -63,6 +63,49 @@ class AlertWorker(
         val healthManager = HealthManager(appContext)
         healthManager.connect()
 
+        // Automated daily target validations (yesterday's stats)
+        try {
+            val yesterdayDate = java.time.LocalDate.now().minusDays(1)
+            val yesterdaySummary = healthManager.fetchSummary(yesterdayDate)
+            
+            val showSteps = sharedPrefs.getBoolean("show_metric_steps", true)
+            val showCalories = sharedPrefs.getBoolean("show_metric_calories", true)
+            val showSodium = sharedPrefs.getBoolean("show_metric_sodium", true)
+            val showWater = sharedPrefs.getBoolean("show_metric_water", true)
+
+            val targetSteps = sharedPrefs.getInt("target_steps", 10000)
+            val targetCalories = sharedPrefs.getInt("target_calories", 2200)
+            val targetSodium = sharedPrefs.getInt("target_sodium", 2300)
+            val targetWater = sharedPrefs.getInt("target_water", 2000)
+
+            if (showSteps && yesterdaySummary.activity.steps < targetSteps && yesterdaySummary.activity.steps > 0) {
+                showNotification(
+                    "Steps Goal Missed",
+                    "You completed ${yesterdaySummary.activity.steps} steps yesterday, which is ${String.format("%.0f", (yesterdaySummary.activity.steps.toDouble() / targetSteps) * 100)}% of your daily goal ($targetSteps steps)."
+                )
+            }
+            if (showSodium && yesterdaySummary.nutrition.sodiumMg > targetSodium && yesterdaySummary.nutrition.sodiumMg > 0) {
+                showNotification(
+                    "Sodium Limit Exceeded",
+                    "Yesterday's sodium intake was ${String.format("%.0f", yesterdaySummary.nutrition.sodiumMg)} mg, exceeding your limit of $targetSodium mg."
+                )
+            }
+            if (showWater && yesterdaySummary.nutrition.waterMl < targetWater && yesterdaySummary.nutrition.waterMl > 0) {
+                showNotification(
+                    "Hydration Goal Missed",
+                    "You drank ${String.format("%.0f", yesterdaySummary.nutrition.waterMl)} ml of water yesterday, below your daily goal ($targetWater ml)."
+                )
+            }
+            if (showCalories && yesterdaySummary.nutrition.calories > targetCalories && yesterdaySummary.nutrition.calories > 0) {
+                showNotification(
+                    "Calorie Budget Exceeded",
+                    "Yesterday's calorie intake was ${String.format("%.0f", yesterdaySummary.nutrition.calories)} kcal, exceeding your limit of $targetCalories kcal."
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to run target validations", e)
+        }
+
         val model = GenerativeModel(
             modelName = "gemini-1.5-flash",
             apiKey = apiKey,

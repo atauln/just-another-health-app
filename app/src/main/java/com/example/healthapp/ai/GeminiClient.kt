@@ -30,7 +30,23 @@ class GeminiClient(private val context: Context) {
         listOf(Schema.int(name = "daysBack", description = "The number of days back to query (e.g., 7 or 14)"))
     )
 
+    private val saveHealthTargetsDeclaration = defineFunction(
+        name = "saveHealthTargets",
+        description = "Save the generated daily health targets approved by the user.",
+        listOf(
+            Schema.int(name = "steps", description = "Daily steps goal"),
+            Schema.int(name = "calories", description = "Daily calorie intake limit"),
+            Schema.int(name = "sodium", description = "Daily sodium limit in mg"),
+            Schema.int(name = "water", description = "Daily water goal in ml"),
+            Schema.double(name = "weight", description = "Target body weight in kg"),
+            Schema.int(name = "protein", description = "Daily protein goal in grams"),
+            Schema.int(name = "carbs", description = "Daily carbohydrates goal in grams"),
+            Schema.int(name = "fat", description = "Daily fat goal in grams")
+        )
+    )
+
     private val healthTools = listOf(Tool(listOf(queryHealthHistoryDeclaration)))
+    private val targetTools = listOf(Tool(listOf(queryHealthHistoryDeclaration, saveHealthTargetsDeclaration)))
 
     /**
      * Helper to get or create GenerativeModel with the given API key.
@@ -40,6 +56,14 @@ class GeminiClient(private val context: Context) {
             modelName = "gemini-1.5-flash",
             apiKey = apiKey,
             tools = healthTools
+        )
+    }
+
+    private fun getTargetModel(apiKey: String): GenerativeModel {
+        return GenerativeModel(
+            modelName = "gemini-1.5-flash",
+            apiKey = apiKey,
+            tools = targetTools
         )
     }
 
@@ -166,13 +190,124 @@ class GeminiClient(private val context: Context) {
             }
 
             return ChatResult(
-                reply = response.text ?: "Gemini returned empty response.",
+                reply = response.text ?: "No response from coach.",
                 newHistory = chat.history
             )
         } catch (e: Exception) {
-            Log.e(tag, "Error in chat session", e)
+            Log.e(tag, "Failed chat with model", e)
             return ChatResult(
-                reply = "Chat failed: ${e.localizedMessage}",
+                reply = "Error: ${e.localizedMessage}",
+                newHistory = historyList
+            )
+        }
+    }
+
+    suspend fun chatWithTargetConsultant(
+        apiKey: String,
+        historyList: List<com.google.ai.client.generativeai.type.Content>,
+        newMessage: String,
+        profile: com.example.healthapp.data.UserProfile,
+        context: Context,
+        healthManager: HealthManager
+    ): ChatResult {
+        if (apiKey.isBlank()) {
+            return ChatResult(
+                reply = "API Key not set.",
+                newHistory = historyList
+            )
+        }
+
+        try {
+            val model = getTargetModel(apiKey)
+            val chat = model.startChat(historyList)
+
+            val finalMessage = if (historyList.isEmpty()) {
+                val profileIntro = """
+                    [User Profile Context from Samsung Health]
+                    Height: ${profile.height} cm
+                    Weight: ${profile.weight} kg
+                    Gender: ${profile.gender}
+                    BirthDate: ${profile.birthDate}
+                    Nickname: ${profile.nickname}
+                    
+                    Hello AI Target Consultant! Recommend custom daily targets for me. My height and weight details are above.
+                    User Message: $newMessage
+                """.trimIndent()
+                profileIntro
+            } else {
+                newMessage
+            }
+
+            var response = chat.sendMessage(finalMessage)
+            var iterations = 0
+
+            while (response.functionCalls.isNotEmpty() && iterations < 3) {
+                iterations++
+                val call = response.functionCalls.first()
+                Log.d(tag, "Target Consultant received function call request: ${call.name} with args ${call.args}")
+
+                val result = when (call.name) {
+                    "queryHealthHistory" -> {
+                        val daysBack = call.args["daysBack"]?.toIntOrNull() ?: 7
+                        val history = healthManager.fetchHistory(daysBack)
+                        mapOf("history" to history.map { summary ->
+                            mapOf(
+                                "date" to summary.date.toString(),
+                                "steps" to summary.activity.steps,
+                                "activeCaloriesBurned" to summary.activity.activeCalories,
+                                "exerciseMinutes" to summary.activity.exerciseMinutes,
+                                "caloriesConsumed" to summary.nutrition.calories,
+                                "sodiumMg" to summary.nutrition.sodiumMg,
+                                "waterMl" to summary.nutrition.waterMl,
+                                "weightKg" to summary.nutrition.weightKg
+                            )
+                        })
+                    }
+                    "saveHealthTargets" -> {
+                        val steps = call.args["steps"]?.toIntOrNull() ?: 10000
+                        val cals = call.args["calories"]?.toIntOrNull() ?: 2200
+                        val sodium = call.args["sodium"]?.toIntOrNull() ?: 2300
+                        val water = call.args["water"]?.toIntOrNull() ?: 2000
+                        val weight = call.args["weight"]?.toFloatOrNull() ?: 75.0f
+                        
+                        val protein = call.args["protein"]?.toIntOrNull() ?: 100
+                        val carbs = call.args["carbs"]?.toIntOrNull() ?: 200
+                        val fat = call.args["fat"]?.toIntOrNull() ?: 70
+
+                        val prefs = context.getSharedPreferences("health_app_prefs", Context.MODE_PRIVATE)
+                        prefs.edit().apply {
+                            putInt("target_steps", steps)
+                            putInt("target_calories", cals)
+                            putInt("target_sodium", sodium)
+                            putInt("target_water", water)
+                            putFloat("target_weight", weight)
+                            putInt("target_protein", protein)
+                            putInt("target_carbs", carbs)
+                            putInt("target_fat", fat)
+                        }.apply()
+
+                        mapOf("success" to true, "message" to "All targets (including protein, carbs, fat) saved successfully to the app.")
+                    }
+                    else -> {
+                        mapOf("error" to "Unknown function: ${call.name}")
+                    }
+                }
+
+                response = chat.sendMessage(
+                    content("function") {
+                        part(FunctionResponsePart(call.name, JSONObject(result)))
+                    }
+                )
+            }
+
+            return ChatResult(
+                reply = response.text ?: "No response from targets coach.",
+                newHistory = chat.history
+            )
+        } catch (e: Exception) {
+            Log.e(tag, "Failed chat with target consultant", e)
+            return ChatResult(
+                reply = "Error: ${e.localizedMessage}",
                 newHistory = historyList
             )
         }

@@ -161,7 +161,7 @@ fun MainLayout(healthManager: HealthManager, geminiClient: GeminiClient) {
                 1 -> AnalyticsScreen(healthManager)
                 2 -> GeminiChatScreen(healthManager, geminiClient)
                 3 -> RemindersScreen()
-                4 -> SettingsScreen(healthManager)
+                4 -> SettingsScreen(healthManager, geminiClient)
             }
         }
     }

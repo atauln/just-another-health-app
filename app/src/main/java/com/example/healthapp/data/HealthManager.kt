@@ -36,6 +36,20 @@ data class NutritionMetrics(
     val weightKg: Double
 )
 
+data class DailyTargets(
+    val steps: Int,
+    val calories: Int,
+    val water: Int
+)
+
+data class UserProfile(
+    val height: Float,
+    val weight: Float,
+    val gender: String,
+    val birthDate: String,
+    val nickname: String
+)
+
 data class HealthSummary(
     val date: LocalDate,
     val activity: ActivityMetrics,
@@ -88,7 +102,11 @@ class HealthManager(private val context: Context) {
                 Permission.of(DataTypes.NUTRITION, AccessType.READ),
                 Permission.of(DataTypes.WATER_INTAKE, AccessType.READ),
                 Permission.of(DataTypes.BODY_COMPOSITION, AccessType.READ),
-                Permission.of(DataTypes.EXERCISE, AccessType.READ)
+                Permission.of(DataTypes.EXERCISE, AccessType.READ),
+                Permission.of(DataTypes.STEPS_GOAL, AccessType.READ),
+                Permission.of(DataTypes.NUTRITION_GOAL, AccessType.READ),
+                Permission.of(DataTypes.WATER_INTAKE_GOAL, AccessType.READ),
+                Permission.of(DataTypes.USER_PROFILE, AccessType.READ)
             )
 
             MainScope().launch {
@@ -104,6 +122,102 @@ class HealthManager(private val context: Context) {
             Log.e(tag, "Error setting up permissions", e)
             onResult(false)
         }
+    }
+
+    fun fetchTargets(): DailyTargets {
+        val store = healthDataStore
+        if (store != null && connectionState.value == ConnectionState.Connected) {
+            try {
+                return kotlinx.coroutines.runBlocking {
+                    var steps = 10000
+                    var calories = 2200
+                    var water = 2000
+
+                    val today = LocalDate.now()
+                    val localDateFilter = LocalDateFilter.of(today, today)
+
+                    // 1. Steps Goal
+                    try {
+                        val req = DataType.StepsGoalType.LAST.requestBuilder
+                            .setLocalDateFilter(localDateFilter)
+                            .build()
+                        val resp = store.aggregateData(req)
+                        steps = resp.dataList.firstOrNull()?.value?.toInt() ?: 10000
+                    } catch (e: Exception) {
+                        Log.e(tag, "Error querying steps goal", e)
+                    }
+
+                    // 2. Nutrition Goal (Calorie Target)
+                    try {
+                        val req = DataType.NutritionGoalType.LAST_CALORIES.requestBuilder
+                            .setLocalDateFilter(localDateFilter)
+                            .build()
+                        val resp = store.aggregateData(req)
+                        val calFloat = resp.dataList.firstOrNull()?.value
+                        if (calFloat != null) {
+                            calories = calFloat.toInt()
+                        }
+                    } catch (e: Exception) {
+                        Log.e(tag, "Error querying nutrition goal", e)
+                    }
+
+                    // 3. Water Intake Goal
+                    try {
+                        val req = DataType.WaterIntakeGoalType.LAST.requestBuilder
+                            .setLocalDateFilter(localDateFilter)
+                            .build()
+                        val resp = store.aggregateData(req)
+                        val watFloat = resp.dataList.firstOrNull()?.value
+                        if (watFloat != null) {
+                            water = watFloat.toInt()
+                        }
+                    } catch (e: Exception) {
+                        Log.e(tag, "Error querying water goal", e)
+                    }
+
+                    DailyTargets(steps, calories, water)
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Error fetching targets from SDK", e)
+            }
+        }
+        return DailyTargets(10000, 2200, 2000)
+    }
+
+    fun fetchUserProfile(): UserProfile {
+        val store = healthDataStore
+        if (store != null && connectionState.value == ConnectionState.Connected) {
+            try {
+                return kotlinx.coroutines.runBlocking {
+                    var height = 0.0f
+                    var weight = 0.0f
+                    var gender = "UNKNOWN"
+                    var birthDate = ""
+                    var nickname = ""
+
+                    try {
+                        val req = DataTypes.USER_PROFILE.readDataRequestBuilder.build()
+                        val resp = store.readData(req)
+                        val dp = resp.dataList.firstOrNull()
+                        if (dp != null) {
+                            height = dp.getValue(DataType.UserProfileDataType.HEIGHT) ?: 0.0f
+                            weight = dp.getValue(DataType.UserProfileDataType.WEIGHT) ?: 0.0f
+                            val g = dp.getValue(DataType.UserProfileDataType.GENDER)
+                            gender = g?.name ?: "UNKNOWN"
+                            birthDate = dp.getValue(DataType.UserProfileDataType.DATE_OF_BIRTH) ?: ""
+                            nickname = dp.getValue(DataType.UserProfileDataType.NICKNAME) ?: ""
+                        }
+                    } catch (e: Exception) {
+                        Log.e(tag, "Error reading user profile", e)
+                    }
+
+                    UserProfile(height, weight, gender, birthDate, nickname)
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Error fetching user profile from SDK", e)
+            }
+        }
+        return UserProfile(0.0f, 0.0f, "UNKNOWN", "", "")
     }
 
     /**
