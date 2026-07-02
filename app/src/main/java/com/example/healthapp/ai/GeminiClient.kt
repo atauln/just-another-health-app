@@ -53,7 +53,7 @@ class GeminiClient(private val context: Context) {
      */
     private fun getModel(apiKey: String): GenerativeModel {
         return GenerativeModel(
-            modelName = "gemini-1.5-flash",
+            modelName = "gemini-2.5-flash",
             apiKey = apiKey,
             tools = healthTools
         )
@@ -61,7 +61,7 @@ class GeminiClient(private val context: Context) {
 
     private fun getTargetModel(apiKey: String): GenerativeModel {
         return GenerativeModel(
-            modelName = "gemini-1.5-flash",
+            modelName = "gemini-2.5-flash",
             apiKey = apiKey,
             tools = targetTools
         )

@@ -29,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -69,10 +71,10 @@ import androidx.compose.ui.window.Dialog
 // Helper extension to access API key and alerts
 fun Context.getPrefs() = getSharedPreferences("health_app_prefs", Context.MODE_PRIVATE)
 
-fun Context.getApiKey(): String = getPrefs().getString("gemini_api_key", "") ?: ""
+fun Context.getApiKey(): String = getPrefs().getString("gemini_api_key", "")?.trim() ?: ""
 
 fun Context.saveApiKey(key: String) {
-    getPrefs().edit().putString("gemini_api_key", key).apply()
+    getPrefs().edit().putString("gemini_api_key", key.trim()).apply()
 }
 
 fun Context.getTargetSteps(): Int = getPrefs().getInt("target_steps", 10000)
@@ -118,12 +120,24 @@ fun Context.saveShowWeight(b: Boolean) = getPrefs().edit().putBoolean("show_metr
 fun Context.getShowActiveCalories(): Boolean = getPrefs().getBoolean("show_metric_active_calories", true)
 fun Context.saveShowActiveCalories(b: Boolean) = getPrefs().edit().putBoolean("show_metric_active_calories", b).apply()
 
+fun Context.getShowProtein(): Boolean = getPrefs().getBoolean("show_metric_protein", true)
+fun Context.saveShowProtein(b: Boolean) = getPrefs().edit().putBoolean("show_metric_protein", b).apply()
+
+fun Context.getShowCarbs(): Boolean = getPrefs().getBoolean("show_metric_carbs", true)
+fun Context.saveShowCarbs(b: Boolean) = getPrefs().edit().putBoolean("show_metric_carbs", b).apply()
+
+fun Context.getShowFat(): Boolean = getPrefs().getBoolean("show_metric_fat", true)
+fun Context.saveShowFat(b: Boolean) = getPrefs().edit().putBoolean("show_metric_fat", b).apply()
+
 
 fun shareChart(context: Context, history: List<HealthSummary>, metric: String) {
     val targetValue = when (metric) {
         "Steps" -> context.getTargetSteps().toFloat()
         "Sodium" -> context.getTargetSodium().toFloat()
         "Water" -> context.getTargetWater().toFloat()
+        "Protein" -> context.getTargetProtein().toFloat()
+        "Carbs" -> context.getTargetCarbs().toFloat()
+        "Fat" -> context.getTargetFat().toFloat()
         else -> context.getTargetCalories().toFloat()
     }
     
@@ -148,6 +162,9 @@ fun shareChart(context: Context, history: List<HealthSummary>, metric: String) {
             "Steps" -> summary.activity.steps.toFloat()
             "Sodium" -> summary.nutrition.sodiumMg.toFloat()
             "Water" -> summary.nutrition.waterMl.toFloat()
+            "Protein" -> summary.nutrition.proteinG.toFloat()
+            "Carbs" -> summary.nutrition.carbsG.toFloat()
+            "Fat" -> summary.nutrition.fatG.toFloat()
             else -> summary.nutrition.calories.toFloat()
         }
     }
@@ -289,7 +306,7 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
         }
     }
 
-    var aiInsights by remember { mutableStateOf("Click 'Generate AI Insights' below to analyze today's metrics compared with yesterday's.") }
+    var aiInsights by remember { mutableStateOf("Click 'RUN PORTFOLIO ANALYSIS' below to evaluate health indicators.") }
     var isGenerating by remember { mutableStateOf(false) }
 
     val todayData = today
@@ -310,12 +327,15 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
     val showWater = remember { context.getShowWater() }
     val showWeight = remember { context.getShowWeight() }
     val showActiveCals = remember { context.getShowActiveCalories() }
+    val showProtein = remember { context.getShowProtein() }
+    val showCarbs = remember { context.getShowCarbs() }
+    val showFat = remember { context.getShowFat() }
 
     val enabledCards = ArrayList<@Composable (Modifier) -> Unit>()
     if (showSteps) {
         enabledCards.add(@Composable { modifier ->
             MetricComparisonCard(
-                title = "Activity (Steps)",
+                title = "Daily Steps",
                 todayValue = "${todayData.activity.steps}",
                 yesterdayValue = "${yesterdayData.activity.steps}",
                 unit = "steps",
@@ -384,20 +404,87 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
             )
         })
     }
+    if (showProtein) {
+        enabledCards.add(@Composable { modifier ->
+            MetricComparisonCard(
+                title = "Protein Intake",
+                todayValue = String.format("%.0f", todayData.nutrition.proteinG),
+                yesterdayValue = String.format("%.0f", yesterdayData.nutrition.proteinG),
+                unit = "g",
+                color = AccentCyan,
+                modifier = modifier
+            )
+        })
+    }
+    if (showCarbs) {
+        enabledCards.add(@Composable { modifier ->
+            MetricComparisonCard(
+                title = "Carb Intake",
+                todayValue = String.format("%.0f", todayData.nutrition.carbsG),
+                yesterdayValue = String.format("%.0f", yesterdayData.nutrition.carbsG),
+                unit = "g",
+                color = AccentViolet,
+                modifier = modifier
+            )
+        })
+    }
+    if (showFat) {
+        enabledCards.add(@Composable { modifier ->
+            MetricComparisonCard(
+                title = "Fat Intake",
+                todayValue = String.format("%.0f", todayData.nutrition.fatG),
+                yesterdayValue = String.format("%.0f", yesterdayData.nutrition.fatG),
+                unit = "g",
+                color = Color(0xFFF59E0B),
+                modifier = modifier
+            )
+        })
+    }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // Ticker Summary Bar
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .background(Color(0xFF020617), RoundedCornerShape(4.dp))
+                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
+                    .padding(vertical = 6.dp, horizontal = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf(
+                    "CAL" to "${todayData.nutrition.calories.toInt()}/${context.getTargetCalories()} kcal",
+                    "ACT" to "${todayData.activity.activeCalories.toInt()} kcal",
+                    "PRO" to "${todayData.nutrition.proteinG.toInt()}/${context.getTargetProtein()}g",
+                    "CARB" to "${todayData.nutrition.carbsG.toInt()}/${context.getTargetCarbs()}g",
+                    "FAT" to "${todayData.nutrition.fatG.toInt()}/${context.getTargetFat()}g",
+                    "WGT" to "${todayData.nutrition.weightKg}kg"
+                ).forEach { (label, valStr) ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = label, color = AccentCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                        Text(text = valStr, color = TextLight, fontSize = 9.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                    }
+                }
+            }
+        }
+
         item {
             Text(
-                text = "Today's Insights",
+                text = "PORTFOLIO INSIGHTS",
                 color = TextLight,
-                fontSize = 28.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
             )
         }
 
@@ -407,7 +494,7 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (rowCards.size == 2) {
                         rowCards[0](Modifier.weight(1f))
@@ -423,59 +510,77 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
         // AI Coaching Insights block
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = CardDark),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF020617)),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp))
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "AI Health Companion",
-                        color = AccentCyan,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "[AI ANALYST INSIGHTS - REALTIME REPORT]",
+                            color = AccentCyan,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF10B981).copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text("LIVE", color = Color(0xFF10B981), fontSize = 7.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                        }
+                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     if (isGenerating) {
-                        CircularProgressIndicator(color = AccentCyan)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Analyzing health metrics...", color = TextMuted, fontSize = 14.sp)
+                        CircularProgressIndicator(color = AccentCyan, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("COMPUTING PORTFOLIO METRICS...", color = TextMuted, fontSize = 9.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                     } else {
                         Text(
                             text = aiInsights,
-                            color = TextLight,
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp,
+                            color = Color(0xFFE2E8F0),
+                            fontSize = 10.sp,
+                            lineHeight = 15.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Button(
                         onClick = {
-                            isGenerating = true
-                            coroutineScope.launch {
-                                geminiClient.generateDailyInsights(
-                                    apiKey = context.getApiKey(),
-                                    today = todayData,
-                                    yesterday = yesterdayData
-                                ).collect { insights ->
-                                    aiInsights = insights
-                                    isGenerating = false
+                            if (!isGenerating) {
+                                isGenerating = true
+                                coroutineScope.launch {
+                                    geminiClient.generateDailyInsights(
+                                        apiKey = context.getApiKey(),
+                                        today = todayData,
+                                        yesterday = yesterdayData
+                                    ).collect { chunk ->
+                                        aiInsights = chunk
+                                        isGenerating = false
+                                    }
                                 }
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
-                        enabled = !isGenerating,
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.fillMaxWidth().height(32.dp)
                     ) {
-                        Text("Generate AI Insights", color = DarkBgEnd, fontWeight = FontWeight.Bold)
+                        Text("RUN PORTFOLIO ANALYSIS", color = DarkBgEnd, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                     }
                 }
             }
@@ -492,33 +597,65 @@ fun MetricComparisonCard(
     color: Color,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardDark),
-        shape = RoundedCornerShape(16.dp),
-        modifier = modifier.height(130.dp)
+    val todayNum = todayValue.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0
+    val yesterdayNum = yesterdayValue.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0
+    val percentChange = if (yesterdayNum > 0) {
+        ((todayNum - yesterdayNum) / yesterdayNum) * 100
+    } else {
+        0.0
+    }
+
+    Box(
+        modifier = modifier
+            .background(Color(0xFF020617), RoundedCornerShape(8.dp))
+            .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(8.dp))
+            .padding(10.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(title, color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            
-            Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = "$todayValue $unit",
-                    color = color,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Yesterday: $yesterdayValue $unit",
+                    text = title.uppercase(),
                     color = TextMuted,
-                    fontSize = 11.sp
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                )
+                
+                val (trendText, trendColor) = when {
+                    percentChange > 0 -> "+" + String.format("%.1f", percentChange) + "%" to Color(0xFF10B981)
+                    percentChange < 0 -> String.format("%.1f", percentChange) + "%" to Color(0xFFEF4444)
+                    else -> "0.0%" to TextMuted
+                }
+                Text(
+                    text = trendText,
+                    color = trendColor,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                 )
             }
+
+            Text(
+                text = "$todayValue $unit".uppercase(),
+                color = color,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+            )
+
+            Text(
+                text = "YST: $yesterdayValue $unit".uppercase(),
+                color = TextMuted,
+                fontSize = 9.sp,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+            )
         }
     }
 }
@@ -531,7 +668,6 @@ fun AnalyticsScreen(healthManager: HealthManager) {
     val context = LocalContext.current
     var timelineDays by remember { mutableStateOf(7) }
     var history by remember { mutableStateOf<List<HealthSummary>?>(null) }
-    var selectedMetric by remember { mutableStateOf("Steps") }
 
     LaunchedEffect(healthManager, timelineDays) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -550,258 +686,318 @@ fun AnalyticsScreen(healthManager: HealthManager) {
         return
     }
 
-    val targetValue = when (selectedMetric) {
-        "Steps" -> context.getTargetSteps().toFloat()
-        "Sodium" -> context.getTargetSodium().toFloat()
-        "Water" -> context.getTargetWater().toFloat()
-        else -> context.getTargetCalories().toFloat()
-    }
-
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(
-            text = "Analytics & Trends",
-            color = TextLight,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-
-        // Timeline Selector Row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf(7 to "7 Days", 14 to "14 Days", 30 to "30 Days").forEach { (days, label) ->
-                val selected = timelineDays == days
-                Box(
-                    modifier = Modifier
-                        .background(
-                            if (selected) AccentViolet else CardDark,
-                            RoundedCornerShape(20.dp)
-                        )
-                        .clickable { timelineDays = days }
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = label,
-                        color = if (selected) TextLight else TextMuted,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        // Dropdown selection row
-        val showSteps = remember { context.getShowSteps() }
-        val showSodium = remember { context.getShowSodium() }
-        val showWater = remember { context.getShowWater() }
-        val showCalories = remember { context.getShowCalories() }
-
-        val metricsList = remember(showSteps, showSodium, showWater, showCalories) {
-            buildList {
-                if (showSteps) add("Steps")
-                if (showSodium) add("Sodium")
-                if (showWater) add("Water")
-                if (showCalories) add("Calories")
-            }
-        }
-
-        if (selectedMetric !in metricsList && metricsList.isNotEmpty()) {
-            selectedMetric = metricsList.first()
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            metricsList.forEach { metric ->
-                val selected = selectedMetric == metric
-                Box(
-                    modifier = Modifier
-                        .background(
-                            if (selected) AccentCyan else CardDark,
-                            RoundedCornerShape(20.dp)
-                        )
-                        .clickable { selectedMetric = metric }
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = metric,
-                        color = if (selected) DarkBgEnd else TextLight,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+        // Heading & Timeframe switcher row
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "$selectedMetric Trend",
-                            color = TextLight,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Target: ${targetValue.toInt()} ${if (selectedMetric == "Calories") "kcal" else if (selectedMetric == "Sodium") "mg" else if (selectedMetric == "Water") "ml" else "steps"}",
-                            color = Color(0xFFEF4444),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    IconButton(
-                        onClick = { shareChart(context, historyData, selectedMetric) },
-                        colors = IconButtonDefaults.iconButtonColors(contentColor = AccentCyan)
-                    ) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = "Share Chart")
-                    }
-                }
-
-                // Custom Graphic Chart using Canvas
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(240.dp)
-                        .padding(top = 16.dp, bottom = 16.dp)
-                ) {
-                    val values = historyData.map { summary ->
-                        when (selectedMetric) {
-                            "Steps" -> summary.activity.steps.toFloat()
-                            "Sodium" -> summary.nutrition.sodiumMg.toFloat()
-                            "Water" -> summary.nutrition.waterMl.toFloat()
-                            else -> summary.nutrition.calories.toFloat()
-                        }
-                    }
-                    val maxValue = (values.maxOrNull() ?: 1f).coerceAtLeast(targetValue).coerceAtLeast(1f)
-
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val width = size.width
-                        val height = size.height
-                        val barCount = historyData.size
-                        val spacing = if (barCount > 15) 6.dp.toPx() else if (barCount > 7) 12.dp.toPx() else 24.dp.toPx()
-                        val totalBarSpacing = spacing * (barCount - 1)
-                        val barWidth = (width - totalBarSpacing) / barCount
-
-                        val points = mutableListOf<Offset>()
-
-                        for (i in 0 until barCount) {
-                            val value = values[i]
-                            val barHeight = (value / maxValue) * (height * 0.85f)
-                            val x = i * (barWidth + spacing)
-                            val y = height - barHeight
-
-                            // Gradient highlighting target boundaries:
-                            // If sodium/calories exceed limit -> red gradient, otherwise green/cyan.
-                            // If steps/water fall below target -> orange/red, otherwise cyan/blue.
-                            val isExceeded = if (selectedMetric == "Sodium" || selectedMetric == "Calories") {
-                                value > targetValue
-                            } else {
-                                value < targetValue
-                            }
-
-                            val barColorStart = if (selectedMetric == "Sodium" || selectedMetric == "Calories") {
-                                if (isExceeded) Color(0xFFEF4444) else Color(0xFF10B981)
-                            } else {
-                                if (isExceeded) Color(0xFFF59E0B) else Color(0xFF06B6D4)
-                            }
-                            val barColorEnd = barColorStart.copy(alpha = 0.2f)
-
-                            drawRoundRect(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(barColorStart, barColorEnd),
-                                    startY = y,
-                                    endY = height
-                                ),
-                                topLeft = Offset(x, y),
-                                size = Size(barWidth, barHeight),
-                                cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
-                            )
-
-                            // Save top center of the bar for the trendline
-                            points.add(Offset(x + barWidth / 2, y))
-                        }
-
-                        // Draw dashed target line
-                        val yTarget = height - (targetValue / maxValue) * (height * 0.85f)
-                        if (targetValue <= maxValue) {
-                            drawLine(
-                                color = Color.Red.copy(alpha = 0.6f),
-                                start = Offset(0f, yTarget),
-                                end = Offset(width, yTarget),
-                                strokeWidth = 2.dp.toPx(),
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(15f, 15f), 0f)
-                            )
-                        }
-
-                        // Draw smooth trendline overlay connecting the points
-                        for (i in 0 until points.size - 1) {
-                            drawLine(
-                                color = Color.White.copy(alpha = 0.8f),
-                                start = points[i],
-                                end = points[i+1],
-                                strokeWidth = 2.dp.toPx()
-                            )
-                            drawCircle(
-                                color = Color.White,
-                                radius = 3.dp.toPx(),
-                                center = points[i]
-                            )
-                        }
-                        if (points.isNotEmpty()) {
-                            drawCircle(
-                                color = Color.White,
-                                radius = 3.dp.toPx(),
-                                center = points.last()
-                            )
-                        }
-                    }
-                }
-
-                // Date Label Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Show dates subset if timeline is large to avoid overlaps
-                    val step = if (timelineDays > 14) 5 else if (timelineDays > 7) 2 else 1
-                    historyData.forEachIndexed { index, summary ->
-                        if (index % step == 0) {
+                Text(
+                    text = "ANALYTICS DECK [H1-REPORT]",
+                    color = TextLight,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                )
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf(7 to "7D", 14 to "14D", 30 to "30D").forEach { (days, label) ->
+                        val selected = timelineDays == days
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    if (selected) AccentCyan else Color(0xFF020617),
+                                    RoundedCornerShape(4.dp)
+                                )
+                                .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
+                                .clickable { timelineDays = days }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
                             Text(
-                                text = "${summary.date.dayOfMonth}/${summary.date.monthValue}",
-                                color = TextMuted,
-                                fontSize = 10.sp,
-                                textAlign = TextAlign.Center
+                                text = label,
+                                color = if (selected) DarkBgEnd else TextMuted,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
-                        } else {
-                            Spacer(modifier = Modifier.width(1.dp))
                         }
+                    }
+                }
+            }
+        }
+
+        // Segment 1: Energy & Intake Chart Deck (Calories vs Target)
+        item {
+            BrokerageChartCard(
+                title = "CH-01: ENERGY ACCOUNTING (CALORIES)",
+                history = historyData,
+                targetValue = context.getTargetCalories().toFloat(),
+                unit = "kcal",
+                colorStart = Color(0xFFF59E0B),
+                metricSelector = { it.nutrition.calories.toFloat() }
+            )
+        }
+
+        // Segment 2: Macronutrient Breakdown (Protein / Carbs / Fat)
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF020617)),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(8.dp))
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(
+                        text = "CH-02: MACRONUTRIENT LEDGERS (G)",
+                        color = AccentCyan,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    val proteinValues = historyData.map { it.nutrition.proteinG.toFloat() }
+                    val carbsValues = historyData.map { it.nutrition.carbsG.toFloat() }
+                    val fatValues = historyData.map { it.nutrition.fatG.toFloat() }
+                    val maxVal = (proteinValues + carbsValues + fatValues).maxOrNull()?.coerceAtLeast(1f) ?: 1f
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(130.dp)
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val w = size.width
+                            val h = size.height
+                            val barCount = historyData.size
+                            val spacing = 6.dp.toPx()
+                            val barWidth = (w - (spacing * (barCount - 1))) / (barCount * 3)
+
+                            for (i in 0 until barCount) {
+                                val xGroup = i * (barWidth * 3 + spacing)
+                                
+                                // Protein bar (Cyan)
+                                val py = h - (proteinValues[i] / maxVal) * h
+                                drawRect(
+                                    color = AccentCyan,
+                                    topLeft = Offset(xGroup, py),
+                                    size = Size(barWidth, h - py)
+                                )
+
+                                // Carbs bar (Violet)
+                                val cy = h - (carbsValues[i] / maxVal) * h
+                                drawRect(
+                                    color = AccentViolet,
+                                    topLeft = Offset(xGroup + barWidth, cy),
+                                    size = Size(barWidth, h - cy)
+                                )
+
+                                // Fat bar (Orange)
+                                val fy = h - (fatValues[i] / maxVal) * h
+                                drawRect(
+                                    color = Color(0xFFF59E0B),
+                                    topLeft = Offset(xGroup + barWidth * 2, fy),
+                                    size = Size(barWidth, h - fy)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(6.dp).background(AccentCyan))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("PRO (TGT: ${context.getTargetProtein()}g)", color = TextMuted, fontSize = 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(6.dp).background(AccentViolet))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("CARB (TGT: ${context.getTargetCarbs()}g)", color = TextMuted, fontSize = 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(6.dp).background(Color(0xFFF59E0B)))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("FAT (TGT: ${context.getTargetFat()}g)", color = TextMuted, fontSize = 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Segment 3: Hydration Metrics Chart (Water)
+        item {
+            BrokerageChartCard(
+                title = "CH-03: HYDRATION REGISTER (WATER)",
+                history = historyData,
+                targetValue = context.getTargetWater().toFloat(),
+                unit = "ml",
+                colorStart = Color(0xFF3B82F6),
+                metricSelector = { it.nutrition.waterMl.toFloat() }
+            )
+        }
+
+        // Segment 4: Cardiovascular Activity (Steps)
+        item {
+            BrokerageChartCard(
+                title = "CH-04: CARDIOVASCULAR VOLUME (STEPS)",
+                history = historyData,
+                targetValue = context.getTargetSteps().toFloat(),
+                unit = "steps",
+                colorStart = AccentCyan,
+                metricSelector = { it.activity.steps.toFloat() }
+            )
+        }
+    }
+}
+
+@Composable
+fun BrokerageChartCard(
+    title: String,
+    history: List<HealthSummary>,
+    targetValue: Float,
+    unit: String,
+    colorStart: Color,
+    metricSelector: (HealthSummary) -> Float
+) {
+    val context = LocalContext.current
+    val values = history.map(metricSelector)
+    val maxVal = (values.maxOrNull() ?: 1f).coerceAtLeast(targetValue).coerceAtLeast(1f)
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF020617)),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(8.dp))
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = title,
+                        color = AccentCyan,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                    Text(
+                        text = "TGT: ${targetValue.toInt()} $unit".uppercase(),
+                        color = Color(0xFFEF4444),
+                        fontSize = 8.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                }
+
+                androidx.compose.material3.IconButton(
+                    onClick = { shareChart(context, history, title.split(" ").last()) },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    androidx.compose.material3.Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share",
+                        tint = AccentCyan,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(110.dp)
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+                    val barCount = history.size
+                    val spacing = 6.dp.toPx()
+                    val barWidth = (w - (spacing * (barCount - 1))) / barCount
+
+                    val points = mutableListOf<Offset>()
+
+                    for (i in 0 until barCount) {
+                        val value = values[i]
+                        val barHeight = (value / maxVal) * (h * 0.85f)
+                        val x = i * (barWidth + spacing)
+                        val y = h - barHeight
+
+                        drawRect(
+                            color = colorStart.copy(alpha = 0.2f),
+                            topLeft = Offset(x, y),
+                            size = Size(barWidth, barHeight)
+                        )
+
+                        points.add(Offset(x + barWidth / 2, y))
+                    }
+
+                    // Dash Target Line
+                    val targetY = h - (targetValue / maxVal) * (h * 0.85f)
+                    drawLine(
+                        color = Color(0xFFEF4444).copy(alpha = 0.5f),
+                        start = Offset(0f, targetY),
+                        end = Offset(w, targetY),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                    )
+
+                    // Line Chart Connecting Points
+                    for (i in 0 until points.size - 1) {
+                        drawLine(
+                            color = colorStart,
+                            start = points[i],
+                            end = points[i + 1],
+                            strokeWidth = 1.5.dp.toPx()
+                        )
+                        drawCircle(
+                            color = colorStart,
+                            radius = 2.dp.toPx(),
+                            center = points[i]
+                        )
+                    }
+                    if (points.isNotEmpty()) {
+                        drawCircle(
+                            color = colorStart,
+                            radius = 2.dp.toPx(),
+                            center = points.last()
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val step = if (history.size > 14) 5 else if (history.size > 7) 2 else 1
+                history.forEachIndexed { index, summary ->
+                    if (index % step == 0) {
+                        Text(
+                            text = "${summary.date.dayOfMonth}/${summary.date.monthValue}",
+                            color = TextMuted,
+                            fontSize = 8.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
                     }
                 }
             }
@@ -1272,6 +1468,9 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
     var showWater by remember { mutableStateOf(context.getShowWater()) }
     var showWeight by remember { mutableStateOf(context.getShowWeight()) }
     var showActiveCalories by remember { mutableStateOf(context.getShowActiveCalories()) }
+    var showProtein by remember { mutableStateOf(context.getShowProtein()) }
+    var showCarbs by remember { mutableStateOf(context.getShowCarbs()) }
+    var showFat by remember { mutableStateOf(context.getShowFat()) }
 
     var showTargetConsultant by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -1413,7 +1612,10 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                     Triple(showSodium, "Sodium Level") { b: Boolean -> showSodium = b; context.saveShowSodium(b) },
                     Triple(showWater, "Water Intake") { b: Boolean -> showWater = b; context.saveShowWater(b) },
                     Triple(showWeight, "Body Weight") { b: Boolean -> showWeight = b; context.saveShowWeight(b) },
-                    Triple(showActiveCalories, "Exercise Calories Burned") { b: Boolean -> showActiveCalories = b; context.saveShowActiveCalories(b) }
+                    Triple(showActiveCalories, "Exercise Calories Burned") { b: Boolean -> showActiveCalories = b; context.saveShowActiveCalories(b) },
+                    Triple(showProtein, "Daily Protein") { b: Boolean -> showProtein = b; context.saveShowProtein(b) },
+                    Triple(showCarbs, "Daily Carbohydrates") { b: Boolean -> showCarbs = b; context.saveShowCarbs(b) },
+                    Triple(showFat, "Daily Fat") { b: Boolean -> showFat = b; context.saveShowFat(b) }
                 ).forEach { (isChecked, label, onCheckChanged) ->
                     Row(
                         modifier = Modifier
