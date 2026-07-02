@@ -17,3 +17,9 @@ build
 *.ipr
 *.iws
 
+# Heap dumps
+*.hprof
+
+# Local configuration
+local.properties
+
