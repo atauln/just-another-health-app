@@ -6,3 +6,14 @@ build
 
 # Ignore Kotlin plugin data
 .kotlin
+
+# Ignore local libraries (AARs) and downloaded archives
+*.aar
+*.zip
+
+# Ignore IDE settings (IntelliJ / Android Studio)
+.idea/
+*.iml
+*.ipr
+*.iws
+
