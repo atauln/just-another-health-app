@@ -72,6 +72,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val showNotificationPermission = android.Manifest.permission.POST_NOTIFICATIONS
+            if (checkSelfPermission(showNotificationPermission) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(showNotificationPermission), 101)
+            }
+        }
+
         healthManager = HealthManager(this)
         healthManager.connect()
         geminiClient = GeminiClient(this)

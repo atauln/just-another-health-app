@@ -1750,19 +1750,38 @@ fun RemindersScreen() {
     var alertsList by remember { mutableStateOf(context.getAlerts()) }
     var newAlertText by remember { mutableStateOf("") }
     var isChecking by remember { mutableStateOf(false) }
+    var showDisclosureInfo by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(10.dp)
     ) {
-        Text(
-            text = "[ALERTS CONTROL CENTRE - ACTIVE POLICIES]",
-            color = TextLight,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "[ALERTS CONTROL CENTRE - ACTIVE POLICIES]",
+                color = TextLight,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (showDisclosureInfo) "[ X ]" else "[ ? ]",
+                color = AccentCyan,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier
+                    .clickable { showDisclosureInfo = !showDisclosureInfo }
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "Gemini queries metrics history daily to flag anomalies or breaches.",
@@ -1770,6 +1789,64 @@ fun RemindersScreen() {
             fontSize = 9.sp,
             fontFamily = FontFamily.Monospace
         )
+        
+        AnimatedVisibility(visible = showDisclosureInfo) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+                    .background(Color(0xFF020617))
+                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(4.dp))
+                    .padding(10.dp)
+            ) {
+                Column {
+                    Text(
+                        text = "AI DATA SCOPE DISCLOSURE:",
+                        color = AccentCyan,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "To evaluate your custom anomaly policies, the Gemini AI model is temporarily provided access to execute daily queries covering:",
+                        color = TextLight,
+                        fontSize = 8.5.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    val keys = listOf(
+                        "• steps (activity)",
+                        "• activeCaloriesBurned (activity)",
+                        "• exerciseMinutes (activity)",
+                        "• caloriesConsumed (nutrition)",
+                        "• sodiumMg (nutrition)",
+                        "• waterMl (nutrition)",
+                        "• weightKg (body composition)",
+                        "• sugarsG (nutrition macros)",
+                        "• fiberG (nutrition macros)",
+                        "• saturatedFatG (nutrition macros)"
+                    )
+                    keys.forEach { key ->
+                        Text(
+                            text = key,
+                            color = AccentViolet,
+                            fontSize = 8.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "No personal identifiable information (PII) or accounts database content is shared. Queries are scoped strictly to the N days parameter requested by your policy.",
+                        color = TextMuted,
+                        fontSize = 8.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+        
         Spacer(modifier = Modifier.height(10.dp))
 
         // Add Alert Field

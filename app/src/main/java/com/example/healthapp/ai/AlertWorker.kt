@@ -32,34 +32,16 @@ class AlertWorker(
 
     private val queryHealthHistoryDeclaration = defineFunction(
         name = "queryHealthHistory",
-        description = "Query the user's historical daily health metrics (steps, calories, sodium, water, weight) for the last N days.",
+        description = "Query the user's historical daily health metrics (steps, active/consumed calories, sodium, water, weight, sugars, fiber, saturated fat) for the last N days.",
         listOf(Schema.int(name = "daysBack", description = "The number of days back to query (e.g., 7 or 14)"))
     )
 
     private val healthTools = listOf(Tool(listOf(queryHealthHistoryDeclaration)))
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        Log.d(tag, "Starting background health alert check...")
+        Log.i(tag, "Starting background health alert check...")
 
         val sharedPrefs = appContext.getSharedPreferences("health_app_prefs", Context.MODE_PRIVATE)
-        val apiKey = sharedPrefs.getString("gemini_api_key", "") ?: ""
-        if (apiKey.isBlank()) {
-            Log.w(tag, "API Key is missing. Background alerts check skipped.")
-            return@withContext Result.success()
-        }
-
-        val alertsJson = sharedPrefs.getString("alerts_list", "[]") ?: "[]"
-        val alerts = try {
-            Gson().fromJson(alertsJson, Array<String>::class.java).toList()
-        } catch (e: Exception) {
-            emptyList()
-        }
-
-        if (alerts.isEmpty()) {
-            Log.d(tag, "No registered alerts to evaluate.")
-            return@withContext Result.success()
-        }
-
         val healthManager = HealthManager(appContext)
         healthManager.connect()
 
@@ -130,42 +112,65 @@ class AlertWorker(
             Log.e(tag, "Failed to run target validations", e)
         }
 
+        val apiKey = (sharedPrefs.getString("gemini_api_key", "") ?: "").trim()
+        if (apiKey.isBlank()) {
+            Log.w(tag, "API Key is missing. Custom background AI alerts check skipped.")
+            return@withContext Result.success()
+        }
+
+        val alertsJson = sharedPrefs.getString("alerts_list", "[]") ?: "[]"
+        val alerts = try {
+            Gson().fromJson(alertsJson, Array<String>::class.java).toList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+
+        if (alerts.isEmpty()) {
+            Log.i(tag, "No registered alerts to evaluate.")
+            return@withContext Result.success()
+        }
+
         val model = GenerativeModel(
-            modelName = "gemini-1.5-flash",
+            modelName = "gemini-2.5-flash",
             apiKey = apiKey,
             tools = healthTools
         )
 
-        for (alertText in alerts) {
-            try {
-                evaluateAlert(model, alertText, healthManager)
-            } catch (e: Exception) {
-                Log.e(tag, "Error evaluating alert: '$alertText'", e)
-            }
+        try {
+            evaluateAlerts(model, alerts, healthManager)
+        } catch (e: Exception) {
+            Log.e(tag, "Error during batch alert evaluation", e)
         }
 
         Result.success()
     }
 
-    private suspend fun evaluateAlert(
+    private suspend fun evaluateAlerts(
         model: GenerativeModel,
-        alertText: String,
+        alerts: List<String>,
         healthManager: HealthManager
     ) {
         val chat = model.startChat()
+        val alertsFormatted = alerts.mapIndexed { idx, alert -> "${idx + 1}. \"$alert\"" }.joinToString("\n")
         val prompt = """
-            You are a background daemon evaluating a user-configured health alert.
-            Alert condition: "$alertText"
+            You are a background daemon evaluating a list of user-configured health alerts.
+            Alert conditions to assess:
+            $alertsFormatted
             
-            Evaluate if this condition is currently true. You MUST query the historical health data using the 'queryHealthHistory' function to assess the condition (e.g., if the user asks about sodium, steps, or calorie averages, run a query covering the relevant number of days).
+            Evaluate which of these conditions are currently true. You MUST query the historical health data using the 'queryHealthHistory' function to assess the conditions (e.g., if the user asks about sodium, steps, or calorie averages, run a query covering the relevant number of days).
             
-            Once you have retrieved the necessary historical data, determine if the condition is met (true/false).
+            Once you have retrieved the necessary historical data, determine if each condition is met (true/false).
             
             Return your answer ONLY as a raw JSON object in this format:
             {
-              "isTriggered": true,
-              "notificationTitle": "Alert: [Reason for trigger]",
-              "notificationMessage": "[Explain clearly what triggered the alert, referencing specific metrics and averages]"
+              "results": [
+                {
+                  "condition": "[the alert condition string exactly as provided, e.g., 'no exercise logged']",
+                  "isTriggered": true,
+                  "notificationTitle": "Alert: [Reason for trigger]",
+                  "notificationMessage": "[Explain clearly what triggered the alert, referencing specific metrics and averages]"
+                }
+              ]
             }
             Do not wrap it in markdown code blocks, do not return any other text.
         """.trimIndent()
@@ -174,14 +179,12 @@ class AlertWorker(
         var iterations = 0
 
         // Handle function calling loop
-        while (response.functionCalls.isNotEmpty() && iterations < 3) {
+        while (response.functionCalls.isNotEmpty() && iterations < 5) {
             iterations++
             val call = response.functionCalls.first()
             val result = if (call.name == "queryHealthHistory") {
                 val daysBack = call.args["daysBack"]?.toIntOrNull() ?: 7
-                
                 val history = healthManager.fetchHistory(daysBack)
-                
                 mapOf("history" to history.map { summary ->
                     mapOf(
                         "date" to summary.date.toString(),
@@ -191,7 +194,10 @@ class AlertWorker(
                         "caloriesConsumed" to summary.nutrition.calories,
                         "sodiumMg" to summary.nutrition.sodiumMg,
                         "waterMl" to summary.nutrition.waterMl,
-                        "weightKg" to summary.nutrition.weightKg
+                        "weightKg" to summary.nutrition.weightKg,
+                        "sugarsG" to summary.nutrition.sugarsG,
+                        "fiberG" to summary.nutrition.fiberG,
+                        "saturatedFatG" to summary.nutrition.saturatedFatG
                     )
                 })
             } else {
@@ -206,15 +212,28 @@ class AlertWorker(
         }
 
         val responseText = response.text ?: return
-        Log.d(tag, "Alert evaluation response: $responseText")
+        Log.i(tag, "Alert evaluation response: $responseText")
 
         try {
-            val jsonObject = JsonParser.parseString(responseText.trim()).asJsonObject
-            val isTriggered = jsonObject.get("isTriggered")?.asBoolean ?: false
-            if (isTriggered) {
-                val title = jsonObject.get("notificationTitle")?.asString ?: "Health Alert"
-                val message = jsonObject.get("notificationMessage")?.asString ?: "Trigger condition met."
-                showNotification(title, message)
+            var cleanJson = responseText.trim()
+            if (cleanJson.startsWith("```json")) {
+                cleanJson = cleanJson.substringAfter("```json").substringBeforeLast("```").trim()
+            } else if (cleanJson.startsWith("```")) {
+                cleanJson = cleanJson.substringAfter("```").substringBeforeLast("```").trim()
+            }
+
+            val jsonObject = JsonParser.parseString(cleanJson).asJsonObject
+            val resultsArray = jsonObject.getAsJsonArray("results")
+            if (resultsArray != null) {
+                for (elem in resultsArray) {
+                    val resultObj = elem.asJsonObject
+                    val isTriggered = resultObj.get("isTriggered")?.asBoolean ?: false
+                    if (isTriggered) {
+                        val title = resultObj.get("notificationTitle")?.asString ?: "Health Alert"
+                        val message = resultObj.get("notificationMessage")?.asString ?: "Trigger condition met."
+                        showNotification(title, message)
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e(tag, "Failed to parse JSON response from alert evaluator: $responseText", e)
