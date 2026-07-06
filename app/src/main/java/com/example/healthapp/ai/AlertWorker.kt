@@ -72,11 +72,17 @@ class AlertWorker(
             val showCalories = sharedPrefs.getBoolean("show_metric_calories", true)
             val showSodium = sharedPrefs.getBoolean("show_metric_sodium", true)
             val showWater = sharedPrefs.getBoolean("show_metric_water", true)
+            val showSugars = sharedPrefs.getBoolean("show_metric_sugars", true)
+            val showFiber = sharedPrefs.getBoolean("show_metric_fiber", true)
+            val showSaturatedFat = sharedPrefs.getBoolean("show_metric_saturated_fat", true)
 
             val targetSteps = sharedPrefs.getInt("target_steps", 10000)
             val targetCalories = sharedPrefs.getInt("target_calories", 2200)
             val targetSodium = sharedPrefs.getInt("target_sodium", 2300)
             val targetWater = sharedPrefs.getInt("target_water", 2000)
+            val targetSugars = sharedPrefs.getInt("target_sugars", 50)
+            val targetFiber = sharedPrefs.getInt("target_fiber", 30)
+            val targetSaturatedFat = sharedPrefs.getInt("target_saturated_fat", 20)
 
             if (showSteps && yesterdaySummary.activity.steps < targetSteps && yesterdaySummary.activity.steps > 0) {
                 showNotification(
@@ -100,6 +106,24 @@ class AlertWorker(
                 showNotification(
                     "Calorie Budget Exceeded",
                     "Yesterday's calorie intake was ${String.format("%.0f", yesterdaySummary.nutrition.calories)} kcal, exceeding your limit of $targetCalories kcal."
+                )
+            }
+            if (showSugars && yesterdaySummary.nutrition.sugarsG > targetSugars && yesterdaySummary.nutrition.sugarsG > 0) {
+                showNotification(
+                    "Sugar Limit Exceeded",
+                    "Yesterday's sugar intake was ${String.format("%.0f", yesterdaySummary.nutrition.sugarsG)} g, exceeding your limit of $targetSugars g."
+                )
+            }
+            if (showFiber && yesterdaySummary.nutrition.fiberG < targetFiber && yesterdaySummary.nutrition.fiberG > 0) {
+                showNotification(
+                    "Fiber Goal Missed",
+                    "Yesterday's fiber intake was ${String.format("%.0f", yesterdaySummary.nutrition.fiberG)} g, below your daily goal ($targetFiber g)."
+                )
+            }
+            if (showSaturatedFat && yesterdaySummary.nutrition.saturatedFatG > targetSaturatedFat && yesterdaySummary.nutrition.saturatedFatG > 0) {
+                showNotification(
+                    "Saturated Fat Limit Exceeded",
+                    "Yesterday's saturated fat intake was ${String.format("%.0f", yesterdaySummary.nutrition.saturatedFatG)} g, exceeding your limit of $targetSaturatedFat g."
                 )
             }
         } catch (e: Exception) {

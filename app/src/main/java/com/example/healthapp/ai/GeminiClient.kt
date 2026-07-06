@@ -41,7 +41,10 @@ class GeminiClient(private val context: Context) {
             Schema.double(name = "weight", description = "Target body weight in kg"),
             Schema.int(name = "protein", description = "Daily protein goal in grams"),
             Schema.int(name = "carbs", description = "Daily carbohydrates goal in grams"),
-            Schema.int(name = "fat", description = "Daily fat goal in grams")
+            Schema.int(name = "fat", description = "Daily fat goal in grams"),
+            Schema.int(name = "sugars", description = "Daily sugars limit in grams"),
+            Schema.int(name = "fiber", description = "Daily dietary fiber goal in grams"),
+            Schema.int(name = "saturatedFat", description = "Daily saturated fat limit in grams")
         )
     )
 
@@ -70,49 +73,72 @@ class GeminiClient(private val context: Context) {
     /**
      * Generate daily comparison insights.
      */
-    fun generateDailyInsights(
+    fun generateWeeklyInsights(
         apiKey: String,
-        today: HealthSummary,
-        yesterday: HealthSummary
+        history: List<HealthSummary>
     ): Flow<String> = flow {
         if (apiKey.isBlank()) {
-            emit(generateMockInsights(today, yesterday))
+            emit("Gemini API key not set. Please update configuration under system calibrations tab.")
             return@flow
         }
 
         try {
             val model = getModel(apiKey)
+            val summaryText = history.joinToString("\n\n") { day ->
+                val dateStr = day.date.toString()
+                
+                val steps = if (day.activity.steps > 0) "${day.activity.steps}" else "[Not Tracked]"
+                val activeCal = if (day.activity.activeCalories > 0.0) "${day.activity.activeCalories.toInt()} kcal" else "[Not Tracked]"
+                val exerciseMin = if (day.activity.exerciseMinutes > 0) "${day.activity.exerciseMinutes} min" else "[Not Tracked]"
+                
+                val cal = if (day.nutrition.calories > 0.0) "${day.nutrition.calories.toInt()} kcal" else "[Not Tracked]"
+                val sodium = if (day.nutrition.sodiumMg > 0.0) "${day.nutrition.sodiumMg.toInt()} mg" else "[Not Tracked]"
+                val water = if (day.nutrition.waterMl > 0.0) "${day.nutrition.waterMl.toInt()} ml" else "[Not Tracked]"
+                val weight = if (day.nutrition.weightKg > 0.0) "${String.format("%.1f", day.nutrition.weightKg)} kg" else "[Not Tracked]"
+                
+                val protein = if (day.nutrition.proteinG > 0.0) "${day.nutrition.proteinG.toInt()} g" else "[Not Tracked]"
+                val carbs = if (day.nutrition.carbsG > 0.0) "${day.nutrition.carbsG.toInt()} g" else "[Not Tracked]"
+                val fat = if (day.nutrition.fatG > 0.0) "${day.nutrition.fatG.toInt()} g" else "[Not Tracked]"
+                
+                val sugars = if (day.nutrition.sugarsG > 0.0) "${day.nutrition.sugarsG.toInt()} g" else "[Not Tracked]"
+                val fiber = if (day.nutrition.fiberG > 0.0) "${day.nutrition.fiberG.toInt()} g" else "[Not Tracked]"
+                val satFat = if (day.nutrition.saturatedFatG > 0.0) "${day.nutrition.saturatedFatG.toInt()} g" else "[Not Tracked]"
+
+                """
+                Date: $dateStr
+                - Steps: $steps
+                - Calories Burned: $activeCal
+                - Exercise Duration: $exerciseMin
+                - Calories Eaten: $cal
+                - Sodium: $sodium
+                - Water: $water
+                - Weight: $weight
+                - Protein: $protein
+                - Carbs: $carbs
+                - Fat: $fat
+                - Sugars: $sugars
+                - Fiber: $fiber
+                - Saturated Fat: $satFat
+                """.trimIndent()
+            }
+
             val prompt = """
-                Analyze the health and nutrition metrics of the user for Today vs Yesterday:
+                Analyze the user's health and nutrition history over the last 7 completed days:
                 
-                Today:
-                - Steps: ${today.activity.steps}
-                - Calories burned: ${today.activity.activeCalories} kcal
-                - Exercise duration: ${today.activity.exerciseMinutes} min
-                - Calories eaten: ${today.nutrition.calories} kcal
-                - Sodium: ${today.nutrition.sodiumMg} mg
-                - Water intake: ${today.nutrition.waterMl} ml
-                - Weight: ${today.nutrition.weightKg} kg
+                $summaryText
                 
-                Yesterday:
-                - Steps: ${yesterday.activity.steps}
-                - Calories burned: ${yesterday.activity.activeCalories} kcal
-                - Exercise duration: ${yesterday.activity.exerciseMinutes} min
-                - Calories eaten: ${yesterday.nutrition.calories} kcal
-                - Sodium: ${yesterday.nutrition.sodiumMg} mg
-                - Water intake: ${yesterday.nutrition.waterMl} ml
-                - Weight: ${yesterday.nutrition.weightKg} kg
-                
-                Generate a concise, premium 2-paragraph summary comparing their progress. 
-                Identify key changes (e.g., step count drop/increase, high sodium intake, water hydration levels) 
-                and provide one actionable health tip. Keep the tone encouraging and analytical.
+                Generate a concise, premium 2-paragraph weekly trend summary. 
+                Identify key trends (e.g. macro distribution, hydration levels, step volume trends, sugars/fiber/saturated fat quality limits) and target breaches.
+                Ensure you ignore any metrics marked as '[Not Tracked]'. Do NOT assume they are 0; treat them as missing data.
+                Provide one actionable health recommendation for the coming week.
+                Keep the tone encouraging, analytical, and professional like a trading terminal audit.
             """.trimIndent()
 
             val response = model.generateContent(prompt)
-            emit(response.text ?: "Failed to generate insights from Gemini.")
+            emit(response.text ?: "Failed to generate weekly trend insights.")
         } catch (e: Exception) {
-            Log.e(tag, "Gemini API call failed, using mock insights", e)
-            emit("Error generating insights: ${e.localizedMessage}\n\n${generateMockInsights(today, yesterday)}")
+            Log.e(tag, "Gemini weekly insights call failed", e)
+            emit("Error generating weekly insights: ${e.localizedMessage}")
         }
     }.flowOn(Dispatchers.IO)
 
@@ -259,7 +285,10 @@ class GeminiClient(private val context: Context) {
                                 "caloriesConsumed" to summary.nutrition.calories,
                                 "sodiumMg" to summary.nutrition.sodiumMg,
                                 "waterMl" to summary.nutrition.waterMl,
-                                "weightKg" to summary.nutrition.weightKg
+                                "weightKg" to summary.nutrition.weightKg,
+                                "sugarsG" to summary.nutrition.sugarsG,
+                                "fiberG" to summary.nutrition.fiberG,
+                                "saturatedFatG" to summary.nutrition.saturatedFatG
                             )
                         })
                     }
@@ -274,6 +303,10 @@ class GeminiClient(private val context: Context) {
                         val carbs = call.args["carbs"]?.toIntOrNull() ?: 200
                         val fat = call.args["fat"]?.toIntOrNull() ?: 70
 
+                        val sugars = call.args["sugars"]?.toIntOrNull() ?: 50
+                        val fiber = call.args["fiber"]?.toIntOrNull() ?: 30
+                        val saturatedFat = call.args["saturatedFat"]?.toIntOrNull() ?: 20
+
                         val prefs = context.getSharedPreferences("health_app_prefs", Context.MODE_PRIVATE)
                         prefs.edit().apply {
                             putInt("target_steps", steps)
@@ -284,9 +317,12 @@ class GeminiClient(private val context: Context) {
                             putInt("target_protein", protein)
                             putInt("target_carbs", carbs)
                             putInt("target_fat", fat)
+                            putInt("target_sugars", sugars)
+                            putInt("target_fiber", fiber)
+                            putInt("target_saturated_fat", saturatedFat)
                         }.apply()
 
-                        mapOf("success" to true, "message" to "All targets (including protein, carbs, fat) saved successfully to the app.")
+                        mapOf("success" to true, "message" to "All targets (including protein, carbs, fat, sugars, fiber, saturated fat) saved successfully to the app.")
                     }
                     else -> {
                         mapOf("error" to "Unknown function: ${call.name}")

@@ -66,6 +66,7 @@ import java.io.File
 import java.io.FileOutputStream
 import androidx.core.content.FileProvider
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.window.Dialog
 
 // Helper extension to access API key and alerts
@@ -101,6 +102,15 @@ fun Context.saveTargetCarbs(c: Int) = getPrefs().edit().putInt("target_carbs", c
 fun Context.getTargetFat(): Int = getPrefs().getInt("target_fat", 70)
 fun Context.saveTargetFat(f: Int) = getPrefs().edit().putInt("target_fat", f).apply()
 
+fun Context.getTargetSugars(): Int = getPrefs().getInt("target_sugars", 50)
+fun Context.saveTargetSugars(s: Int) = getPrefs().edit().putInt("target_sugars", s).apply()
+
+fun Context.getTargetFiber(): Int = getPrefs().getInt("target_fiber", 30)
+fun Context.saveTargetFiber(f: Int) = getPrefs().edit().putInt("target_fiber", f).apply()
+
+fun Context.getTargetSaturatedFat(): Int = getPrefs().getInt("target_saturated_fat", 20)
+fun Context.saveTargetSaturatedFat(sf: Int) = getPrefs().edit().putInt("target_saturated_fat", sf).apply()
+
 // Visibility getters/setters
 fun Context.getShowSteps(): Boolean = getPrefs().getBoolean("show_metric_steps", true)
 fun Context.saveShowSteps(b: Boolean) = getPrefs().edit().putBoolean("show_metric_steps", b).apply()
@@ -129,15 +139,28 @@ fun Context.saveShowCarbs(b: Boolean) = getPrefs().edit().putBoolean("show_metri
 fun Context.getShowFat(): Boolean = getPrefs().getBoolean("show_metric_fat", true)
 fun Context.saveShowFat(b: Boolean) = getPrefs().edit().putBoolean("show_metric_fat", b).apply()
 
+fun Context.getShowSugars(): Boolean = getPrefs().getBoolean("show_metric_sugars", true)
+fun Context.saveShowSugars(b: Boolean) = getPrefs().edit().putBoolean("show_metric_sugars", b).apply()
+
+fun Context.getShowFiber(): Boolean = getPrefs().getBoolean("show_metric_fiber", true)
+fun Context.saveShowFiber(b: Boolean) = getPrefs().edit().putBoolean("show_metric_fiber", b).apply()
+
+fun Context.getShowSaturatedFat(): Boolean = getPrefs().getBoolean("show_metric_saturated_fat", true)
+fun Context.saveShowSaturatedFat(b: Boolean) = getPrefs().edit().putBoolean("show_metric_saturated_fat", b).apply()
+
 
 fun shareChart(context: Context, history: List<HealthSummary>, metric: String) {
-    val targetValue = when (metric) {
-        "Steps" -> context.getTargetSteps().toFloat()
-        "Sodium" -> context.getTargetSodium().toFloat()
-        "Water" -> context.getTargetWater().toFloat()
-        "Protein" -> context.getTargetProtein().toFloat()
-        "Carbs" -> context.getTargetCarbs().toFloat()
-        "Fat" -> context.getTargetFat().toFloat()
+    val cleanMetric = metric.uppercase().replace("(", "").replace(")", "")
+    val targetValue = when (cleanMetric) {
+        "STEPS" -> context.getTargetSteps().toFloat()
+        "SODIUM" -> context.getTargetSodium().toFloat()
+        "WATER" -> context.getTargetWater().toFloat()
+        "PROTEIN" -> context.getTargetProtein().toFloat()
+        "CARBS" -> context.getTargetCarbs().toFloat()
+        "FAT" -> context.getTargetFat().toFloat()
+        "SUGARS" -> context.getTargetSugars().toFloat()
+        "FIBER" -> context.getTargetFiber().toFloat()
+        "SATURATED_FAT", "SATFAT", "SAT" -> context.getTargetSaturatedFat().toFloat()
         else -> context.getTargetCalories().toFloat()
     }
     
@@ -155,16 +178,19 @@ fun shareChart(context: Context, history: List<HealthSummary>, metric: String) {
         isFakeBoldText = true
         isAntiAlias = true
     }
-    canvas.drawText("$metric Chart - Last ${history.size} Days", 40f, 60f, titlePaint)
+    canvas.drawText("$cleanMetric Chart - Last ${history.size} Days", 40f, 60f, titlePaint)
     
     val values = history.map { summary ->
-        when (metric) {
-            "Steps" -> summary.activity.steps.toFloat()
-            "Sodium" -> summary.nutrition.sodiumMg.toFloat()
-            "Water" -> summary.nutrition.waterMl.toFloat()
-            "Protein" -> summary.nutrition.proteinG.toFloat()
-            "Carbs" -> summary.nutrition.carbsG.toFloat()
-            "Fat" -> summary.nutrition.fatG.toFloat()
+        when (cleanMetric) {
+            "STEPS" -> summary.activity.steps.toFloat()
+            "SODIUM" -> summary.nutrition.sodiumMg.toFloat()
+            "WATER" -> summary.nutrition.waterMl.toFloat()
+            "PROTEIN" -> summary.nutrition.proteinG.toFloat()
+            "CARBS" -> summary.nutrition.carbsG.toFloat()
+            "FAT" -> summary.nutrition.fatG.toFloat()
+            "SUGARS" -> summary.nutrition.sugarsG.toFloat()
+            "FIBER" -> summary.nutrition.fiberG.toFloat()
+            "SATURATED_FAT", "SATFAT", "SAT" -> summary.nutrition.saturatedFatG.toFloat()
             else -> summary.nutrition.calories.toFloat()
         }
     }
@@ -207,8 +233,9 @@ fun shareChart(context: Context, history: List<HealthSummary>, metric: String) {
         val bottom = height - 100f
         val top = bottom - barH
         
-        val isExceeded = if (metric == "Sodium" || metric == "Calories") value > targetValue else value < targetValue
-        val hexColor = if (metric == "Sodium" || metric == "Calories") {
+        val isLimit = cleanMetric == "SODIUM" || cleanMetric == "CALORIES" || cleanMetric == "SUGARS" || cleanMetric == "SATURATED_FAT" || cleanMetric == "SATFAT" || cleanMetric == "SAT"
+        val isExceeded = if (isLimit) value > targetValue else value < targetValue
+        val hexColor = if (isLimit) {
             if (isExceeded) "#EF4444" else "#10B981"
         } else {
             if (isExceeded) "#F59E0B" else "#06B6D4"
@@ -298,11 +325,13 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
 
     var today by remember { mutableStateOf<HealthSummary?>(null) }
     var yesterday by remember { mutableStateOf<HealthSummary?>(null) }
+    var weeklyHistory by remember { mutableStateOf<List<HealthSummary>>(emptyList()) }
 
     LaunchedEffect(healthManager) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             today = healthManager.fetchSummary(LocalDate.now().minusDays(1)) // Yesterday (Audit Target)
             yesterday = healthManager.fetchSummary(LocalDate.now().minusDays(2)) // Previous Day (Comparative)
+            weeklyHistory = healthManager.fetchHistory(7)
         }
     }
 
@@ -330,6 +359,9 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
     val showProtein = remember { context.getShowProtein() }
     val showCarbs = remember { context.getShowCarbs() }
     val showFat = remember { context.getShowFat() }
+    val showSugars = remember { context.getShowSugars() }
+    val showFiber = remember { context.getShowFiber() }
+    val showSaturatedFat = remember { context.getShowSaturatedFat() }
 
     val enabledCards = ArrayList<@Composable (Modifier) -> Unit>()
     if (showSteps) {
@@ -440,6 +472,42 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
             )
         })
     }
+    if (showSugars) {
+        enabledCards.add(@Composable { modifier ->
+            MetricComparisonCard(
+                title = "Sugar Intake",
+                todayValue = String.format("%.0f", todayData.nutrition.sugarsG),
+                yesterdayValue = String.format("%.0f", yesterdayData.nutrition.sugarsG),
+                unit = "g",
+                color = AccentCyan,
+                modifier = modifier
+            )
+        })
+    }
+    if (showFiber) {
+        enabledCards.add(@Composable { modifier ->
+            MetricComparisonCard(
+                title = "Fiber Intake",
+                todayValue = String.format("%.0f", todayData.nutrition.fiberG),
+                yesterdayValue = String.format("%.0f", yesterdayData.nutrition.fiberG),
+                unit = "g",
+                color = AccentViolet,
+                modifier = modifier
+            )
+        })
+    }
+    if (showSaturatedFat) {
+        enabledCards.add(@Composable { modifier ->
+            MetricComparisonCard(
+                title = "Sat Fat Intake",
+                todayValue = String.format("%.0f", todayData.nutrition.saturatedFatG),
+                yesterdayValue = String.format("%.0f", yesterdayData.nutrition.saturatedFatG),
+                unit = "g",
+                color = Color(0xFFF59E0B),
+                modifier = modifier
+            )
+        })
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -480,14 +548,36 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                listOf(
-                    "CAL" to "${todayData.nutrition.calories.toInt()}/${context.getTargetCalories()} kcal",
-                    "ACT" to "${todayData.activity.activeCalories.toInt()} kcal",
-                    "PRO" to "${todayData.nutrition.proteinG.toInt()}/${context.getTargetProtein()}g",
-                    "CARB" to "${todayData.nutrition.carbsG.toInt()}/${context.getTargetCarbs()}g",
-                    "FAT" to "${todayData.nutrition.fatG.toInt()}/${context.getTargetFat()}g",
-                    "WGT" to "${todayData.nutrition.weightKg}kg"
-                ).forEach { (label, valStr) ->
+                val tickerItems = ArrayList<Pair<String, String>>()
+                if (showCalories) {
+                    tickerItems.add("CAL" to "${todayData.nutrition.calories.toInt()}/${context.getTargetCalories()} kcal")
+                }
+                if (showActiveCals) {
+                    tickerItems.add("ACT" to "${todayData.activity.activeCalories.toInt()} kcal")
+                }
+                if (showProtein) {
+                    tickerItems.add("PRO" to "${todayData.nutrition.proteinG.toInt()}/${context.getTargetProtein()}g")
+                }
+                if (showCarbs) {
+                    tickerItems.add("CARB" to "${todayData.nutrition.carbsG.toInt()}/${context.getTargetCarbs()}g")
+                }
+                if (showFat) {
+                    tickerItems.add("FAT" to "${todayData.nutrition.fatG.toInt()}/${context.getTargetFat()}g")
+                }
+                if (showSugars) {
+                    tickerItems.add("SUG" to "${todayData.nutrition.sugarsG.toInt()}/${context.getTargetSugars()}g")
+                }
+                if (showFiber) {
+                    tickerItems.add("FIB" to "${todayData.nutrition.fiberG.toInt()}/${context.getTargetFiber()}g")
+                }
+                if (showSaturatedFat) {
+                    tickerItems.add("SFAT" to "${todayData.nutrition.saturatedFatG.toInt()}/${context.getTargetSaturatedFat()}g")
+                }
+                if (showWeight) {
+                    tickerItems.add("WGT" to "${todayData.nutrition.weightKg}kg")
+                }
+
+                tickerItems.forEach { (label, valStr) ->
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -583,13 +673,12 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
 
                     Button(
                         onClick = {
-                            if (!isGenerating) {
+                            if (!isGenerating && weeklyHistory.isNotEmpty()) {
                                 isGenerating = true
                                 coroutineScope.launch {
-                                    geminiClient.generateDailyInsights(
+                                    geminiClient.generateWeeklyInsights(
                                         apiKey = context.getApiKey(),
-                                        today = todayData,
-                                        yesterday = yesterdayData
+                                        history = weeklyHistory
                                     ).collect { chunk ->
                                         aiInsights = chunk
                                         isGenerating = false
@@ -689,6 +778,10 @@ fun AnalyticsScreen(healthManager: HealthManager) {
     val context = LocalContext.current
     var timelineDays by remember { mutableStateOf(7) }
     var history by remember { mutableStateOf<List<HealthSummary>?>(null) }
+    
+    val showSugars = remember { context.getShowSugars() }
+    val showFiber = remember { context.getShowFiber() }
+    val showSaturatedFat = remember { context.getShowSaturatedFat() }
 
     LaunchedEffect(healthManager, timelineDays) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -800,13 +893,16 @@ fun AnalyticsScreen(healthManager: HealthManager) {
                             val h = size.height
                             val barCount = historyData.size
                             val spacing = 6.dp.toPx()
-                            val barWidth = (w - (spacing * (barCount - 1))) / (barCount * 3)
+                            
+                            val paddingLeft = 35.dp.toPx()
+                            val chartWidth = w - paddingLeft
+                            val barWidth = (chartWidth - (spacing * (barCount - 1))) / (barCount * 3)
 
                             for (i in 0 until barCount) {
-                                val xGroup = i * (barWidth * 3 + spacing)
+                                val xGroup = paddingLeft + i * (barWidth * 3 + spacing)
                                 
                                 // Protein bar (Cyan)
-                                val py = h - (proteinValues[i] / maxVal) * h
+                                val py = h - (proteinValues[i] / maxVal) * (h * 0.85f)
                                 drawRect(
                                     color = AccentCyan,
                                     topLeft = Offset(xGroup, py),
@@ -814,7 +910,7 @@ fun AnalyticsScreen(healthManager: HealthManager) {
                                 )
 
                                 // Carbs bar (Violet)
-                                val cy = h - (carbsValues[i] / maxVal) * h
+                                val cy = h - (carbsValues[i] / maxVal) * (h * 0.85f)
                                 drawRect(
                                     color = AccentViolet,
                                     topLeft = Offset(xGroup + barWidth, cy),
@@ -822,17 +918,79 @@ fun AnalyticsScreen(healthManager: HealthManager) {
                                 )
 
                                 // Fat bar (Orange)
-                                val fy = h - (fatValues[i] / maxVal) * h
+                                val fy = h - (fatValues[i] / maxVal) * (h * 0.85f)
                                 drawRect(
                                     color = Color(0xFFF59E0B),
                                     topLeft = Offset(xGroup + barWidth * 2, fy),
                                     size = Size(barWidth, h - fy)
                                 )
                             }
+
+                            // ── Draw Vertical Y-Axis Line ─────────────────────────
+                            drawLine(
+                                color = Color(0xFF1E293B),
+                                start = Offset(paddingLeft, 0f),
+                                end = Offset(paddingLeft, h),
+                                strokeWidth = 1.dp.toPx()
+                            )
+
+                            // ── Draw Horizontal Gridlines & Monospace Labels ──────
+                            val gridLines = listOf(
+                                h to 0.0,
+                                (h - 0.5f * (h * 0.85f)) to (maxVal * 0.5),
+                                (h * 0.15f) to maxVal.toDouble()
+                            )
+
+                            val paint = android.graphics.Paint().apply {
+                                color = android.graphics.Color.parseColor("#94A3B8") // TextMuted
+                                textSize = 7.sp.toPx()
+                                typeface = android.graphics.Typeface.MONOSPACE
+                                textAlign = android.graphics.Paint.Align.RIGHT
+                            }
+
+                            gridLines.forEach { (y, value) ->
+                                drawLine(
+                                    color = Color(0xFF334155).copy(alpha = 0.4f),
+                                    start = Offset(paddingLeft, y),
+                                    end = Offset(w, y),
+                                    strokeWidth = 1.dp.toPx(),
+                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
+                                )
+                                
+                                val label = if (value >= 1000) String.format("%.1fk", value / 1000.0) else String.format("%.0f", value)
+                                drawContext.canvas.nativeCanvas.drawText(
+                                    label,
+                                    paddingLeft - 6.dp.toPx(),
+                                    y + 2.5f.dp.toPx(),
+                                    paint
+                                )
+                            }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))
+
+                    // Bottom Axis dates Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 35.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        val step = if (historyData.size > 14) 5 else if (historyData.size > 7) 2 else 1
+                        historyData.forEachIndexed { index, summary ->
+                            if (index % step == 0) {
+                                Text(
+                                    text = "${summary.date.dayOfMonth}/${summary.date.monthValue}",
+                                    color = TextMuted,
+                                    fontSize = 8.sp,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -880,6 +1038,171 @@ fun AnalyticsScreen(healthManager: HealthManager) {
                 colorStart = AccentCyan,
                 metricSelector = { it.activity.steps.toFloat() }
             )
+        }
+
+        // Segment 5: Nutrient Quality (Sugars / Fiber / Saturated Fat)
+        if (showSugars || showFiber || showSaturatedFat) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF020617)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(8.dp))
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = "CH-05: NUTRIENT QUALITY LEDGER (G)",
+                            color = AccentCyan,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        val sugarsValues = historyData.map { it.nutrition.sugarsG.toFloat() }
+                        val fiberValues = historyData.map { it.nutrition.fiberG.toFloat() }
+                        val satFatValues = historyData.map { it.nutrition.saturatedFatG.toFloat() }
+                        val maxVal = (sugarsValues + fiberValues + satFatValues).maxOrNull()?.coerceAtLeast(1f) ?: 1f
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(130.dp)
+                        ) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val w = size.width
+                                val h = size.height
+                                val barCount = historyData.size
+                                val spacing = 6.dp.toPx()
+                                
+                                val paddingLeft = 35.dp.toPx()
+                                val chartWidth = w - paddingLeft
+                                val barWidth = (chartWidth - (spacing * (barCount - 1))) / (barCount * 3)
+
+                                for (i in 0 until barCount) {
+                                    val xGroup = paddingLeft + i * (barWidth * 3 + spacing)
+                                    
+                                    // Sugars bar (Cyan)
+                                    val sy = h - (sugarsValues[i] / maxVal) * (h * 0.85f)
+                                    drawRect(
+                                        color = AccentCyan,
+                                        topLeft = Offset(xGroup, sy),
+                                        size = Size(barWidth, h - sy)
+                                    )
+
+                                    // Fiber bar (Violet)
+                                    val fy = h - (fiberValues[i] / maxVal) * (h * 0.85f)
+                                    drawRect(
+                                        color = AccentViolet,
+                                        topLeft = Offset(xGroup + barWidth, fy),
+                                        size = Size(barWidth, h - fy)
+                                    )
+
+                                    // Saturated Fat bar (Orange)
+                                    val sfy = h - (satFatValues[i] / maxVal) * (h * 0.85f)
+                                    drawRect(
+                                        color = Color(0xFFF59E0B),
+                                        topLeft = Offset(xGroup + barWidth * 2, sfy),
+                                        size = Size(barWidth, h - sfy)
+                                    )
+                                }
+
+                                // ── Draw Vertical Y-Axis Line ─────────────────────
+                                drawLine(
+                                    color = Color(0xFF1E293B),
+                                    start = Offset(paddingLeft, 0f),
+                                    end = Offset(paddingLeft, h),
+                                    strokeWidth = 1.dp.toPx()
+                                )
+
+                                // ── Draw Horizontal Gridlines & Monospace Labels ──
+                                val gridLines = listOf(
+                                    h to 0.0,
+                                    (h - 0.5f * (h * 0.85f)) to (maxVal * 0.5),
+                                    (h * 0.15f) to maxVal.toDouble()
+                                )
+
+                                val paint = android.graphics.Paint().apply {
+                                    color = android.graphics.Color.parseColor("#94A3B8") // TextMuted
+                                    textSize = 7.sp.toPx()
+                                    typeface = android.graphics.Typeface.MONOSPACE
+                                    textAlign = android.graphics.Paint.Align.RIGHT
+                                }
+
+                                gridLines.forEach { (y, value) ->
+                                    drawLine(
+                                        color = Color(0xFF334155).copy(alpha = 0.4f),
+                                        start = Offset(paddingLeft, y),
+                                        end = Offset(w, y),
+                                        strokeWidth = 1.dp.toPx(),
+                                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
+                                    )
+                                    
+                                    val label = if (value >= 1000) String.format("%.1fk", value / 1000.0) else String.format("%.0f", value)
+                                    drawContext.canvas.nativeCanvas.drawText(
+                                        label,
+                                        paddingLeft - 6.dp.toPx(),
+                                        y + 2.5f.dp.toPx(),
+                                        paint
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Bottom Axis dates Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 35.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            val step = if (historyData.size > 14) 5 else if (historyData.size > 7) 2 else 1
+                            historyData.forEachIndexed { index, summary ->
+                                if (index % step == 0) {
+                                    Text(
+                                        text = "${summary.date.dayOfMonth}/${summary.date.monthValue}",
+                                        color = TextMuted,
+                                        fontSize = 8.sp,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            if (showSugars) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(6.dp).background(AccentCyan))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("SUG (MAX: ${context.getTargetSugars()}g)", color = TextMuted, fontSize = 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                                }
+                            }
+                            if (showFiber) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(6.dp).background(AccentViolet))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("FIB (MIN: ${context.getTargetFiber()}g)", color = TextMuted, fontSize = 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                                }
+                            }
+                            if (showSaturatedFat) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(6.dp).background(Color(0xFFF59E0B)))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("SFAT (MAX: ${context.getTargetSaturatedFat()}g)", color = TextMuted, fontSize = 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -951,14 +1274,17 @@ fun BrokerageChartCard(
                     val h = size.height
                     val barCount = history.size
                     val spacing = 6.dp.toPx()
-                    val barWidth = (w - (spacing * (barCount - 1))) / barCount
+                    
+                    val paddingLeft = 35.dp.toPx()
+                    val chartWidth = w - paddingLeft
+                    val barWidth = (chartWidth - (spacing * (barCount - 1))) / barCount
 
                     val points = mutableListOf<Offset>()
 
                     for (i in 0 until barCount) {
                         val value = values[i]
                         val barHeight = (value / maxVal) * (h * 0.85f)
-                        val x = i * (barWidth + spacing)
+                        val x = paddingLeft + i * (barWidth + spacing)
                         val y = h - barHeight
 
                         drawRect(
@@ -970,15 +1296,45 @@ fun BrokerageChartCard(
                         points.add(Offset(x + barWidth / 2, y))
                     }
 
-                    // Dash Target Line
-                    val targetY = h - (targetValue / maxVal) * (h * 0.85f)
+                    // ── Draw Vertical Y-Axis Line ─────────────────────────────
                     drawLine(
-                        color = Color(0xFFEF4444).copy(alpha = 0.5f),
-                        start = Offset(0f, targetY),
-                        end = Offset(w, targetY),
-                        strokeWidth = 1.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                        color = Color(0xFF1E293B),
+                        start = Offset(paddingLeft, 0f),
+                        end = Offset(paddingLeft, h),
+                        strokeWidth = 1.dp.toPx()
                     )
+
+                    // ── Draw Horizontal Gridlines & Monospace Labels ──────────
+                    val gridLines = listOf(
+                        h to 0.0,
+                        (h - (targetValue / maxVal) * (h * 0.85f)) to targetValue.toDouble(),
+                        (h * 0.15f) to maxVal.toDouble()
+                    )
+
+                    val paint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.parseColor("#94A3B8") // TextMuted
+                        textSize = 7.sp.toPx()
+                        typeface = android.graphics.Typeface.MONOSPACE
+                        textAlign = android.graphics.Paint.Align.RIGHT
+                    }
+
+                    gridLines.forEach { (y, value) ->
+                        drawLine(
+                            color = if (value == targetValue.toDouble()) Color(0xFFEF4444).copy(alpha = 0.6f) else Color(0xFF334155).copy(alpha = 0.4f),
+                            start = Offset(paddingLeft, y),
+                            end = Offset(w, y),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
+                        )
+                        
+                        val label = if (value >= 1000) String.format("%.1fk", value / 1000.0) else String.format("%.0f", value)
+                        drawContext.canvas.nativeCanvas.drawText(
+                            label,
+                            paddingLeft - 6.dp.toPx(),
+                            y + 2.5f.dp.toPx(),
+                            paint
+                        )
+                    }
 
                     // Line Chart Connecting Points
                     for (i in 0 until points.size - 1) {
@@ -1007,7 +1363,9 @@ fun BrokerageChartCard(
             Spacer(modifier = Modifier.height(4.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 35.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 val step = if (history.size > 14) 5 else if (history.size > 7) 2 else 1
@@ -1525,6 +1883,9 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
     var proteinInput by remember { mutableStateOf(context.getTargetProtein().toString()) }
     var carbsInput by remember { mutableStateOf(context.getTargetCarbs().toString()) }
     var fatInput by remember { mutableStateOf(context.getTargetFat().toString()) }
+    var sugarsInput by remember { mutableStateOf(context.getTargetSugars().toString()) }
+    var fiberInput by remember { mutableStateOf(context.getTargetFiber().toString()) }
+    var saturatedFatInput by remember { mutableStateOf(context.getTargetSaturatedFat().toString()) }
 
     var showSteps by remember { mutableStateOf(context.getShowSteps()) }
     var showCalories by remember { mutableStateOf(context.getShowCalories()) }
@@ -1535,6 +1896,9 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
     var showProtein by remember { mutableStateOf(context.getShowProtein()) }
     var showCarbs by remember { mutableStateOf(context.getShowCarbs()) }
     var showFat by remember { mutableStateOf(context.getShowFat()) }
+    var showSugars by remember { mutableStateOf(context.getShowSugars()) }
+    var showFiber by remember { mutableStateOf(context.getShowFiber()) }
+    var showSaturatedFat by remember { mutableStateOf(context.getShowSaturatedFat()) }
 
     var showTargetConsultant by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -1672,7 +2036,10 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                     Triple(showActiveCalories, "Exercise Calories Burned") { b: Boolean -> showActiveCalories = b; context.saveShowActiveCalories(b) },
                     Triple(showProtein, "Daily Protein") { b: Boolean -> showProtein = b; context.saveShowProtein(b) },
                     Triple(showCarbs, "Daily Carbohydrates") { b: Boolean -> showCarbs = b; context.saveShowCarbs(b) },
-                    Triple(showFat, "Daily Fat") { b: Boolean -> showFat = b; context.saveShowFat(b) }
+                    Triple(showFat, "Daily Fat") { b: Boolean -> showFat = b; context.saveShowFat(b) },
+                    Triple(showSugars, "Daily Sugars") { b: Boolean -> showSugars = b; context.saveShowSugars(b) },
+                    Triple(showFiber, "Dietary Fiber") { b: Boolean -> showFiber = b; context.saveShowFiber(b) },
+                    Triple(showSaturatedFat, "Saturated Fat") { b: Boolean -> showSaturatedFat = b; context.saveShowSaturatedFat(b) }
                 ).forEach { (isChecked, label, onCheckChanged) ->
                     Row(
                         modifier = Modifier
@@ -1720,6 +2087,9 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                     TargetField("PROTEIN GOAL (g)", proteinInput) { v -> proteinInput = v; v.toIntOrNull()?.let { context.saveTargetProtein(it) } },
                     TargetField("CARBS GOAL (g)", carbsInput) { v -> carbsInput = v; v.toIntOrNull()?.let { context.saveTargetCarbs(it) } },
                     TargetField("FAT GOAL (g)", fatInput) { v -> fatInput = v; v.toIntOrNull()?.let { context.saveTargetFat(it) } },
+                    TargetField("SUGARS LIMIT (g)", sugarsInput) { v -> sugarsInput = v; v.toIntOrNull()?.let { context.saveTargetSugars(it) } },
+                    TargetField("FIBER GOAL (g)", fiberInput) { v -> fiberInput = v; v.toIntOrNull()?.let { context.saveTargetFiber(it) } },
+                    TargetField("SAT FAT LIMIT (g)", saturatedFatInput) { v -> saturatedFatInput = v; v.toIntOrNull()?.let { context.saveTargetSaturatedFat(it) } },
                     TargetField("TARGET WEIGHT (kg)", weightInput) { v -> weightInput = v; v.toFloatOrNull()?.let { context.saveTargetWeight(it) } }
                 )
 
@@ -1914,6 +2284,9 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                                             proteinInput = context.getTargetProtein().toString()
                                             carbsInput = context.getTargetCarbs().toString()
                                             fatInput = context.getTargetFat().toString()
+                                            sugarsInput = context.getTargetSugars().toString()
+                                            fiberInput = context.getTargetFiber().toString()
+                                            saturatedFatInput = context.getTargetSaturatedFat().toString()
                                         } catch (e: Exception) {
                                             consultantMessages.add(ChatMessage("Error: ${e.localizedMessage}", false))
                                         } finally {

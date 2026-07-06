@@ -33,7 +33,10 @@ data class NutritionMetrics(
     val proteinG: Double,
     val fatG: Double,
     val waterMl: Double,
-    val weightKg: Double
+    val weightKg: Double,
+    val sugarsG: Double,
+    val fiberG: Double,
+    val saturatedFatG: Double
 )
 
 data class DailyTargets(
@@ -268,12 +271,15 @@ class HealthManager(private val context: Context) {
                         Log.e(tag, "Error querying exercise duration", e)
                     }
 
-                    // 4. Nutrition (calories, sodium, carbs, protein, fat)
+                    // 4. Nutrition (calories, sodium, carbs, protein, fat, sugars, fiber, saturated fat)
                     var calories = 0.0
                     var sodiumMg = 0.0
                     var carbsG = 0.0
                     var proteinG = 0.0
                     var fatG = 0.0
+                    var sugarsG = 0.0
+                    var fiberG = 0.0
+                    var saturatedFatG = 0.0
                     try {
                         val req = DataTypes.NUTRITION.readDataRequestBuilder
                             .setLocalTimeFilter(localTimeFilter)
@@ -285,6 +291,9 @@ class HealthManager(private val context: Context) {
                             carbsG += (dp.getValue(DataType.NutritionType.CARBOHYDRATE) ?: 0f).toDouble()
                             proteinG += (dp.getValue(DataType.NutritionType.PROTEIN) ?: 0f).toDouble()
                             fatG += (dp.getValue(DataType.NutritionType.TOTAL_FAT) ?: 0f).toDouble()
+                            sugarsG += (dp.getValue(DataType.NutritionType.SUGAR) ?: 0f).toDouble()
+                            fiberG += (dp.getValue(DataType.NutritionType.DIETARY_FIBER) ?: 0f).toDouble()
+                            saturatedFatG += (dp.getValue(DataType.NutritionType.SATURATED_FAT) ?: 0f).toDouble()
                         }
                     } catch (e: Exception) {
                         Log.e(tag, "Error querying nutrition", e)
@@ -330,7 +339,10 @@ class HealthManager(private val context: Context) {
                                 proteinG = proteinG,
                                 fatG = fatG,
                                 waterMl = waterMl,
-                                weightKg = if (weightKg > 0) weightKg else 78.5
+                                weightKg = if (weightKg > 0) weightKg else 78.5,
+                                sugarsG = sugarsG,
+                                fiberG = fiberG,
+                                saturatedFatG = saturatedFatG
                             )
                         )
                     } else {
@@ -375,6 +387,10 @@ class HealthManager(private val context: Context) {
         val protein = calories * 0.25 / 4.0
         val fat = calories * 0.25 / 9.0
 
+        val sugars = carbs * random.nextDouble(0.1, 0.3)
+        val fiber = carbs * random.nextDouble(0.05, 0.15)
+        val saturatedFat = fat * random.nextDouble(0.2, 0.4)
+
         val water = random.nextDouble(1200.0, 3000.0)
 
         return HealthSummary(
@@ -387,7 +403,10 @@ class HealthManager(private val context: Context) {
                 proteinG = protein,
                 fatG = fat,
                 waterMl = water,
-                weightKg = weight
+                weightKg = weight,
+                sugarsG = sugars,
+                fiberG = fiber,
+                saturatedFatG = saturatedFat
             )
         )
     }
