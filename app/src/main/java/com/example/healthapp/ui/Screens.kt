@@ -782,6 +782,8 @@ fun AnalyticsScreen(healthManager: HealthManager) {
     val showSugars = remember { context.getShowSugars() }
     val showFiber = remember { context.getShowFiber() }
     val showSaturatedFat = remember { context.getShowSaturatedFat() }
+    val showSodium = remember { context.getShowSodium() }
+    val showWeight = remember { context.getShowWeight() }
 
     LaunchedEffect(healthManager, timelineDays) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -1202,6 +1204,34 @@ fun AnalyticsScreen(healthManager: HealthManager) {
                         }
                     }
                 }
+            }
+        }
+
+        // Segment 6: Sodium Discovery (Sodium)
+        if (showSodium) {
+            item {
+                BrokerageChartCard(
+                    title = "CH-06: SODIUM DISCOVERY (SODIUM)",
+                    history = historyData,
+                    targetValue = context.getTargetSodium().toFloat(),
+                    unit = "mg",
+                    colorStart = Color(0xFFEF4444),
+                    metricSelector = { it.nutrition.sodiumMg.toFloat() }
+                )
+            }
+        }
+
+        // Segment 7: Body Composition Ledger (Weight)
+        if (showWeight) {
+            item {
+                BrokerageChartCard(
+                    title = "CH-07: BODY COMPOSITION LEDGER (WEIGHT)",
+                    history = historyData,
+                    targetValue = context.getTargetWeight(),
+                    unit = "kg",
+                    colorStart = Color(0xFF10B981),
+                    metricSelector = { it.nutrition.weightKg.toFloat() }
+                )
             }
         }
     }
