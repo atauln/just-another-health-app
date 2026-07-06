@@ -13,6 +13,7 @@ import com.google.ai.client.generativeai.type.content
 import com.google.ai.client.generativeai.type.defineFunction
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -82,6 +83,9 @@ class GeminiClient(private val context: Context) {
             return@flow
         }
 
+        emit("STAGE 1/4: Structuring 7-day health trends history...")
+        delay(600)
+
         try {
             val model = getModel(apiKey)
             val summaryText = history.joinToString("\n\n") { day ->
@@ -94,7 +98,7 @@ class GeminiClient(private val context: Context) {
                 val cal = if (day.nutrition.calories > 0.0) "${day.nutrition.calories.toInt()} kcal" else "[Not Tracked]"
                 val sodium = if (day.nutrition.sodiumMg > 0.0) "${day.nutrition.sodiumMg.toInt()} mg" else "[Not Tracked]"
                 val water = if (day.nutrition.waterMl > 0.0) "${day.nutrition.waterMl.toInt()} ml" else "[Not Tracked]"
-                val weight = if (day.nutrition.weightKg > 0.0) "${String.format("%.1f", day.nutrition.weightKg)} kg" else "[Not Tracked]"
+                val weight = if (day.nutrition.weightKg > 0.0) "${String.format("%.1f", day.nutrition.weightKg * 2.20462)} lbs" else "[Not Tracked]"
                 
                 val protein = if (day.nutrition.proteinG > 0.0) "${day.nutrition.proteinG.toInt()} g" else "[Not Tracked]"
                 val carbs = if (day.nutrition.carbsG > 0.0) "${day.nutrition.carbsG.toInt()} g" else "[Not Tracked]"
@@ -122,6 +126,9 @@ class GeminiClient(private val context: Context) {
                 """.trimIndent()
             }
 
+            emit("STAGE 2/4: Reading calorie, step, and sodium thresholds...")
+            delay(600)
+
             val prompt = """
                 Analyze the user's health and nutrition history over the last 7 completed days:
                 
@@ -134,6 +141,10 @@ class GeminiClient(private val context: Context) {
                 Keep the tone encouraging, analytical, and professional like a trading terminal audit.
             """.trimIndent()
 
+            emit("STAGE 3/4: RAG - Evaluating macro balances (sugars, fiber, fats)...")
+            delay(600)
+
+            emit("STAGE 4/4: Generating weekly insights dashboard audit...")
             val response = model.generateContent(prompt)
             emit(response.text ?: "Failed to generate weekly trend insights.")
         } catch (e: Exception) {
@@ -200,7 +211,7 @@ class GeminiClient(private val context: Context) {
                             "caloriesConsumed" to summary.nutrition.calories,
                             "sodiumMg" to summary.nutrition.sodiumMg,
                             "waterMl" to summary.nutrition.waterMl,
-                            "weightKg" to summary.nutrition.weightKg
+                            "weightLbs" to summary.nutrition.weightKg * 2.20462
                         )
                     })
                 } else {
@@ -234,7 +245,8 @@ class GeminiClient(private val context: Context) {
         newMessage: String,
         profile: com.example.healthapp.data.UserProfile,
         context: Context,
-        healthManager: HealthManager
+        healthManager: HealthManager,
+        onProgress: (String) -> Unit = {}
     ): ChatResult {
         if (apiKey.isBlank()) {
             return ChatResult(
@@ -243,15 +255,22 @@ class GeminiClient(private val context: Context) {
             )
         }
 
+        onProgress("STAGE 1/4: Connecting to Gemini model...")
         try {
             val model = getTargetModel(apiKey)
             val chat = model.startChat(historyList)
+
+            if (historyList.isEmpty()) {
+                onProgress("STAGE 2/4: Packing physical profile data (height, weight, age)...")
+            } else {
+                onProgress("STAGE 2/4: Appending chat message context...")
+            }
 
             val finalMessage = if (historyList.isEmpty()) {
                 val profileIntro = """
                     [User Profile Context from Samsung Health]
                     Height: ${profile.height} cm
-                    Weight: ${profile.weight} kg
+                    Weight: ${String.format("%.1f", profile.weight * 2.20462)} lbs
                     Gender: ${profile.gender}
                     BirthDate: ${profile.birthDate}
                     Nickname: ${profile.nickname}
@@ -275,6 +294,7 @@ class GeminiClient(private val context: Context) {
                 val result = when (call.name) {
                     "queryHealthHistory" -> {
                         val daysBack = call.args["daysBack"]?.toIntOrNull() ?: 7
+                        onProgress("STAGE 3/4 [RAG]: Querying $daysBack days of steps, calories, and sodium history...")
                         val history = healthManager.fetchHistory(daysBack)
                         mapOf("history" to history.map { summary ->
                             mapOf(
@@ -285,7 +305,7 @@ class GeminiClient(private val context: Context) {
                                 "caloriesConsumed" to summary.nutrition.calories,
                                 "sodiumMg" to summary.nutrition.sodiumMg,
                                 "waterMl" to summary.nutrition.waterMl,
-                                "weightKg" to summary.nutrition.weightKg,
+                                "weightLbs" to summary.nutrition.weightKg * 2.20462,
                                 "sugarsG" to summary.nutrition.sugarsG,
                                 "fiberG" to summary.nutrition.fiberG,
                                 "saturatedFatG" to summary.nutrition.saturatedFatG
@@ -297,7 +317,7 @@ class GeminiClient(private val context: Context) {
                         val cals = call.args["calories"]?.toIntOrNull() ?: 2200
                         val sodium = call.args["sodium"]?.toIntOrNull() ?: 2300
                         val water = call.args["water"]?.toIntOrNull() ?: 2000
-                        val weight = call.args["weight"]?.toFloatOrNull() ?: 75.0f
+                        val weight = call.args["weight"]?.toFloatOrNull() ?: 165.0f
                         
                         val protein = call.args["protein"]?.toIntOrNull() ?: 100
                         val carbs = call.args["carbs"]?.toIntOrNull() ?: 200
@@ -307,6 +327,7 @@ class GeminiClient(private val context: Context) {
                         val fiber = call.args["fiber"]?.toIntOrNull() ?: 30
                         val saturatedFat = call.args["saturatedFat"]?.toIntOrNull() ?: 20
 
+                        onProgress("STAGE 3/4 [TOOL]: Writing updated step, calorie, and nutrient targets...")
                         val prefs = context.getSharedPreferences("health_app_prefs", Context.MODE_PRIVATE)
                         prefs.edit().apply {
                             putInt("target_steps", steps)
@@ -336,6 +357,7 @@ class GeminiClient(private val context: Context) {
                 )
             }
 
+            onProgress("STAGE 4/4: Formulating calibration splits...")
             return ChatResult(
                 reply = response.text ?: "No response from targets coach.",
                 newHistory = chat.history

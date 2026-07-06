@@ -194,7 +194,7 @@ class AlertWorker(
                         "caloriesConsumed" to summary.nutrition.calories,
                         "sodiumMg" to summary.nutrition.sodiumMg,
                         "waterMl" to summary.nutrition.waterMl,
-                        "weightKg" to summary.nutrition.weightKg,
+                        "weightLbs" to summary.nutrition.weightKg * 2.20462,
                         "sugarsG" to summary.nutrition.sugarsG,
                         "fiberG" to summary.nutrition.fiberG,
                         "saturatedFatG" to summary.nutrition.saturatedFatG

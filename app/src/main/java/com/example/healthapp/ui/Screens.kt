@@ -90,7 +90,7 @@ fun Context.saveTargetSodium(sodium: Int) = getPrefs().edit().putInt("target_sod
 fun Context.getTargetWater(): Int = getPrefs().getInt("target_water", 2000)
 fun Context.saveTargetWater(water: Int) = getPrefs().edit().putInt("target_water", water).apply()
 
-fun Context.getTargetWeight(): Float = getPrefs().getFloat("target_weight", 75.0f)
+fun Context.getTargetWeight(): Float = getPrefs().getFloat("target_weight", 165.0f)
 fun Context.saveTargetWeight(weight: Float) = getPrefs().edit().putFloat("target_weight", weight).apply()
 
 fun Context.getTargetProtein(): Int = getPrefs().getInt("target_protein", 100)
@@ -428,9 +428,9 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
         enabledCards.add(@Composable { modifier ->
             MetricComparisonCard(
                 title = "Body Weight",
-                todayValue = String.format("%.1f", todayData.nutrition.weightKg),
-                yesterdayValue = String.format("%.1f", yesterdayData.nutrition.weightKg),
-                unit = "kg",
+                todayValue = String.format("%.1f", todayData.nutrition.weightKg * 2.20462),
+                yesterdayValue = String.format("%.1f", yesterdayData.nutrition.weightKg * 2.20462),
+                unit = "lbs",
                 color = Color(0xFF10B981),
                 modifier = modifier
             )
@@ -574,7 +574,7 @@ fun DashboardScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                     tickerItems.add("SFAT" to "${todayData.nutrition.saturatedFatG.toInt()}/${context.getTargetSaturatedFat()}g")
                 }
                 if (showWeight) {
-                    tickerItems.add("WGT" to "${todayData.nutrition.weightKg}kg")
+                    tickerItems.add("WGT" to "${String.format("%.1f", todayData.nutrition.weightKg * 2.20462)} lbs")
                 }
 
                 tickerItems.forEach { (label, valStr) ->
@@ -1228,9 +1228,9 @@ fun AnalyticsScreen(healthManager: HealthManager) {
                     title = "CH-07: BODY COMPOSITION LEDGER (WEIGHT)",
                     history = historyData,
                     targetValue = context.getTargetWeight(),
-                    unit = "kg",
+                    unit = "lbs",
                     colorStart = Color(0xFF10B981),
-                    metricSelector = { it.nutrition.weightKg.toFloat() }
+                    metricSelector = { (it.nutrition.weightKg * 2.20462).toFloat() }
                 )
             }
         }
@@ -1822,7 +1822,7 @@ fun RemindersScreen() {
                         "• caloriesConsumed (nutrition)",
                         "• sodiumMg (nutrition)",
                         "• waterMl (nutrition)",
-                        "• weightKg (body composition)",
+                        "• weightLbs (body composition)",
                         "• sugarsG (nutrition macros)",
                         "• fiberG (nutrition macros)",
                         "• saturatedFatG (nutrition macros)"
@@ -2197,7 +2197,7 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                     TargetField("SUGARS LIMIT (g)", sugarsInput) { v -> sugarsInput = v; v.toIntOrNull()?.let { context.saveTargetSugars(it) } },
                     TargetField("FIBER GOAL (g)", fiberInput) { v -> fiberInput = v; v.toIntOrNull()?.let { context.saveTargetFiber(it) } },
                     TargetField("SAT FAT LIMIT (g)", saturatedFatInput) { v -> saturatedFatInput = v; v.toIntOrNull()?.let { context.saveTargetSaturatedFat(it) } },
-                    TargetField("TARGET WEIGHT (kg)", weightInput) { v -> weightInput = v; v.toFloatOrNull()?.let { context.saveTargetWeight(it) } }
+                    TargetField("TARGET WEIGHT (lbs)", weightInput) { v -> weightInput = v; v.toFloatOrNull()?.let { context.saveTargetWeight(it) } }
                 )
 
                 fields.chunked(2).forEach { row ->
@@ -2316,6 +2316,7 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                     ) }
                     var consultantMessageInput by remember { mutableStateOf("") }
                     var isConsultantSending by remember { mutableStateOf(false) }
+                    var consultantProgress by remember { mutableStateOf("STAGE 1/4: Initializing AI Target Consultant...") }
                     val userProfile = remember { healthManager.fetchUserProfile() }
 
                     // Scrollable Chat area
@@ -2331,6 +2332,11 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                         ) {
                             items(consultantMessages) { msg ->
                                 ChatBubble(msg)
+                            }
+                            if (isConsultantSending) {
+                                item {
+                                    ChatBubble(ChatMessage(consultantProgress, false))
+                                }
                             }
                         }
                     }
@@ -2366,6 +2372,7 @@ fun SettingsScreen(healthManager: HealthManager, geminiClient: GeminiClient) {
                                 if (consultantMessageInput.isNotBlank() && !isConsultantSending) {
                                     val msg = consultantMessageInput
                                     consultantMessageInput = ""
+                                    consultantProgress = "STAGE 1/4: Initializing AI Target Consultant..."
                                     isConsultantSending = true
                                     consultantMessages.add(ChatMessage(msg, true))
 
